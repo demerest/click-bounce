@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KEEP IT UP - test harness</title>
+<style>
+  html,body{background:#0d1017;color:#e6e9f2;margin:0;padding:14px;
+    font:13px/1.55 ui-monospace,'SF Mono',Menlo,Consolas,monospace;}
+  h1{font-size:15px;margin:0 0 10px;letter-spacing:.06em;}
+  #frameWrap{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+  iframe{width:420px;height:320px;border:2px solid #2a3140;background:#000;display:block;}
+  .cap{font-size:11px;color:#98a1b3;margin-top:4px;}
+  #summary{font-size:16px;font-weight:700;margin:10px 0;padding:8px 10px;border:2px solid #2a3140;}
+  #summary.ok{color:#7ee081;border-color:#2f6b3a;}
+  #summary.bad{color:#ff7b8a;border-color:#7a2b34;}
+  #log{white-space:pre-wrap;}
+  .p{color:#7ee081;} .f{color:#ff7b8a;font-weight:700;} .s{color:#98a1b3;}
+  .sec{color:#ffd166;font-weight:700;margin-top:8px;}
+</style>
+</head>
+<body>
+<h1>KEEP IT UP &mdash; headless integration harness</h1>
+<div id="frameWrap">
+  <div>
+    <iframe id="frame" src="../index.html?debug" title="bundle under test"></iframe>
+    <div class="cap">index.html?debug &mdash; built bundle, deterministic stepping</div>
+  </div>
+  <div>
+    <iframe id="prod" src="../index.html" title="production build"></iframe>
+    <div class="cap">index.html &mdash; shipped build, real rAF loop</div>
+  </div>
+  <div>
+    <iframe id="mod" src="../dev.html" title="module build"></iframe>
+    <div class="cap">dev.html &mdash; ES modules over http</div>
+  </div>
+</div>
+<div id="summary">SUMMARY running...</div>
+<div id="log"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const log = [];
+let pass = 0, fail = 0, skip = 0;
+
+function sec(name){ log.push({t:'sec', m:name}); }
+function ok(cond, name, extra){
+  if (cond){ pass++; log.push({t:'p', m:'  ok   ' + name}); }
+  else { fail++; log.push({t:'f', m:'  FAIL ' + name + (extra !== undefined ? '  >> ' + extra : '')}); }
+  return !!cond;
+}
+function eq(a, b, name){ return ok(a === b, name, 'got ' + JSON.stringify(a) + ', want ' + JSON.stringify(b)); }
+function near(a, b, eps, name){ return ok(Math.abs(a - b) <= eps, name, 'got ' + a + ', want ' + b + ' +/-' + eps); }
+function skipped(name, why){ skip++; log.push({t:'s', m:'  skip ' + name + ' (' + why + ')'}); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function waitFor(fn, ms){
+  const t0 = Date.now();
+  while (!fn()){
+    if (Date.now() - t0 > ms) return false;
+    await sleep(25);
+  }
+  return true;
+}
+const DT = 1 / 60;
+function pump(g, n, dt){ for (let i = 0; i < n; i++) K.update(g, dt === undefined ? DT : dt); }
+function angDiff(a, b){ let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; }
+
+/* Put a game into a known, playable state with the ball parked mid-field. */
+function fresh(w, h){
+  const g = K.newGame(w || 800, h || 600);
+  K.startGame(g);
+  g.ball.x = (w || 800) / 2; g.ball.y = (h || 600) / 2;
+  g.ball.vx = 0; g.ball.vy = 0;
+  g.elapsed = 0; g.hazards.length = 0; g.pickups.length = 0;
+  g.particles.length = 0; g.rings.length = 0; g.texts.length = 0; g.edgeWarns.length = 0;
+  g.reducedMotion = false;
+  return g;
+}
+/* A saw pinned exactly on the ball: no bob, no drift. */
+function pinnedSaw(g, x, y, r){
+  const h = K.spawnSaw(g);
+  if (!h) return null;
+  h.warn = 0; h.vx = 0; h.vy = 0; h.bobAmp = 0; h.bobP = 0;
+  h.x = x; h.y = y; h.cy = y;
+  if (r !== undefined) h.r = r;
+  return h;
+}
+
+let K = null;
+
+async function main(){
+  /* ------------------------------------------------------------ load frames */
+  const f = $('frame'), prod = $('prod'), mod = $('mod');
+  const ready = await waitFor(() => f.contentWindow && f.contentWindow.__KEEPUP__, 15000);
+  if (!ready){
+    $('summary').textContent = 'SUMMARY pass=0 fail=1 skip=0';
+    $('summary').className = 'bad';
+    log.push({t:'f', m:'index.html?debug never exposed the test hook - boot failed or timed out'});
+    try {
+      const ft = f.contentDocument && f.contentDocument.getElementById('fatal');
+      if (ft && ft.textContent) log.push({t:'f', m:'  game reported: ' + ft.textContent});
+    } catch (e){ log.push({t:'f', m:'  could not read the frame: ' + e.message}); }
+    return render();
+  }
+  K = f.contentWindow.__KEEPUP__;
+  const doc = f.contentDocument, win = f.contentWindow;
+  const CFG = K.CFG;
+  const fatal = () => { const e = doc.getElementById('fatal'); return e && !e.classList.contains('hidden') ? e.textContent : null; };
+
+  ok(!fatal(), 'bundle boots with no fatal error', fatal());
+
+  /* ======================================================= 1. boot & shell */
+  sec('1. boot, viewport, overlays');
+  eq(K.G.state, 'menu', 'boots into the menu state (UI-01)');
+  ok(K.G.W > 0 && K.G.H > 0, 'viewport measured from the window', K.G.W + 'x' + K.G.H);
+  const cv = doc.getElementById('game');
+  eq(cv.width, Math.round(K.G.W * K.G.dpr), 'canvas backing store is dpr-aware (PERF-02)');
+  ok(K.G.dpr <= CFG.dprCap, 'devicePixelRatio is capped at 2 (PERF-02)', K.G.dpr);
+  ok(!doc.getElementById('menu').classList.contains('hidden'), 'menu overlay is up at boot');
+  ok(doc.getElementById('over').classList.contains('hidden'), 'game-over overlay hidden at boot');
+  ok(doc.getElementById('pause').classList.contains('hidden'), 'pause overlay hidden at boot');
+  eq(win.getComputedStyle(cv).touchAction, 'none', 'touch-action:none on the play surface (INPUT-01)');
+
+  /* ================================================ 2. tuning-knob parity */
+  sec('2. CFG parity with REQUIREMENTS / ROADMAP tuning table');
+  eq(CFG.gravityBase, 950, 'gravityBase 950 (DIFF-01)');
+  eq(CFG.gravityRamp, 9, 'gravityRamp +9/s (DIFF-01)');
+  eq(CFG.gravityMax, 1650, 'gravityMax 1650 (DIFF-01)');
+  eq(CFG.bouncePower, 880, 'bouncePower 880');
+  eq(CFG.bounceChargeTime, 0.45, 'bounceChargeTime 0.45 (CORE-05)');
+  eq(CFG.bounceMinFactor, 0.55, 'bounceMinFactor 0.55 (CORE-05)');
+  eq(CFG.hitRadiusMul, 2.3, 'hitRadiusMul 2.3 (CORE-02)');
+  eq(CFG.comboWindow, 2.2, 'comboWindow 2.2 (SCORE-02)');
+  eq(CFG.comboCap, 10, 'combo cap x10 (SCORE-03)');
+  eq(CFG.hazardDelay, 9, 'hazard grace period 9s (DIFF-02)');
+  eq(CFG.hazardIntervalStart, 3.4, 'hazard interval starts at 3.4s (DIFF-03)');
+  eq(CFG.hazardIntervalMin, 1.15, 'hazard interval floor 1.15s (DIFF-03)');
+  eq(CFG.spawnMargin, 130, 'spawn margin 130px (HAZ-02 / PICK-03)');
+  eq(CFG.starPoints, 40, 'star is worth 40 (PICK-01)');
+  eq(CFG.starLife, 7, 'star despawns after 7s (PICK-01)');
+  eq(CFG.starBlink, 1.6, 'star blinks in its last 1.6s (PICK-01)');
+  eq(CFG.fpsFloorDt, 1 / 30, 'dt clamp is 1/30 (PHYS-01)');
+  eq(CFG.stretchMax, 0.36, 'stretch capped at 0.36 (PHYS-02)');
+  eq(CFG.wallRest, 0.75, 'wall damping 0.75 (CORE-06)');
+  eq(CFG.bounceCooldown, 0.1, 'bounce rate limit 100ms (CORE-08)');
+  ok(CFG.masterGain <= 0.2, 'master gain <= 0.2 (AUD-04)', CFG.masterGain);
+  ok(CFG.gravityHardCap >= CFG.gravityMax, 'a hard gravity cap exists above the ramp cap (DIFF-05)');
+  ok(CFG.hazardCap === 5, 'at most 5 hazards (HAZ-04)', CFG.hazardCap);
+  ok(CFG.pickupCap === 4, 'at most 4 pickups (PICK-04)', CFG.pickupCap);
+
+  /* ================================================== 3. run reset & start */
+  sec('3. start / reset');
+  let g = K.newGame(800, 600);
+  K.startGame(g);
+  eq(g.state, 'play', 'startGame enters play');
+  eq(g.score, 0, 'score reset'); eq(g.combo, 0, 'combo reset');
+  eq(g.bounces, 0, 'bounce count reset'); eq(g.elapsed, 0, 'run clock reset');
+  eq(g.hazards.length, 0, 'hazards cleared'); eq(g.pickups.length, 0, 'pickups cleared');
+  eq(g.sawTimer, CFG.hazardDelay, 'first saw is scheduled after the grace period (DIFF-02)');
+  eq(g.ball.x, 400, 'ball starts mid-field');
+  ok(g.ball.vy < 0, 'ball starts moving upward');
+  ok(g.lastBounceAt < g.totalT, 'the first bounce of a run is fully charged');
+
+  /* ============================================= 4. gravity ramp and caps */
+  sec('4. difficulty pacing (DIFF-01, DIFF-05)');
+  g = fresh(800, 600);
+  near(K.gravityNow(g), CFG.gravityBase, 1e-9, 'gravity starts at gravityBase');
+  g.elapsed = 70; near(K.gravityNow(g), 950 + 9 * 70, 1e-9, 'gravity ramps +9 px/s^2 per second');
+  g.elapsed = 1000; eq(K.gravityNow(g), CFG.gravityMax, 'gravity stops at gravityMax (DIFF-01)');
+  g.heavyT = 1;
+  near(K.gravityNow(g), CFG.gravityMax * CFG.heavyGravityMul, 1e-9, 'heavy star multiplies gravity by 1.15');
+  ok(K.gravityNow(g) <= CFG.gravityHardCap, 'the heavy multiplier cannot exceed the hard cap (DIFF-05)');
+  g.slowmoT = 1;
+  ok(K.gravityNow(g) < CFG.gravityMax, 'slow-mo lowers gravity');
+  g.slowmoT = 0; g.heavyT = 0;
+
+  /* ============================================ 5. the core verb: bouncing */
+  sec('5. bounce, charge, minimum lift (CORE-02/03/05)');
+  g = fresh(800, 600);
+  ok(K.attemptBounce(g, 400, 340, false), 'a click inside hitRadius bounces (CORE-02)');
+  ok(g.ball.vy < 0, 'the impulse sends the ball upward');
+  near(-g.ball.vy, CFG.bouncePower, 1, 'a fully charged bounce below the ball gives full power');
+  eq(g.combo, 1, 'combo starts at 1');
+  eq(g.bounces, 1, 'bounce counted');
+  eq(g.score, 5, 'first bounce scores 5 x 1 (SCORE-01)');
+  ok(g.hitStop > 0, 'hit-stop armed on bounce (Phase 2)');
+  ok(g.rings.length > 0, 'bounce emits a ring (feedback)');
+
+  g = fresh(800, 600);
+  K.attemptBounce(g, 400 - 50, 300, false);          // click left of the ball
+  ok(-g.ball.vy >= CFG.bouncePower * CFG.bounceMinUpward - 1e-6,
+     'a side click still lifts at >= 0.55 x power (CORE-03)', g.ball.vy);
+  ok(g.ball.vx > 0, 'the ball is pushed away from the pointer (CORE-02)', g.ball.vx);
+  ok(Math.abs(g.ball.spin) > 0, 'an off-centre bounce imparts spin (CORE-09)', g.ball.spin);
+
+  g = fresh(800, 600);
+  const deadCentreSpin = (function(){
+    g.lastBounceAt = g.totalT - 1;
+    K.attemptBounce(g, 400, 300 + 0.001, false);      // as close to dead centre as possible
+    return Math.abs(g.ball.spin);
+  })();
+  g = fresh(800, 600);
+  g.lastBounceAt = g.totalT - 1;
+  K.attemptBounce(g, 400 - 55, 300, false);           // glancing hit at the hitbox edge
+  ok(Math.abs(g.ball.spin) > deadCentreSpin, 'glancing hits spin harder than centred ones (CORE-09)');
+
+  g = fresh(800, 600);
+  g.lastBounceAt = g.totalT - 0.2;                    // 0.2s of charge out of 0.45s
+  K.attemptBounce(g, 400, 340, false);
+  const weak = -g.ball.vy;
+  const wantWeak = CFG.bouncePower * (CFG.bounceMinFactor + (1 - CFG.bounceMinFactor) * (0.2 / CFG.bounceChargeTime));
+  near(weak, wantWeak, 1, 'charge scales power along the CFG curve (CORE-05)');
+  g.lastBounceAt = g.totalT - 1;
+  K.attemptBounce(g, 400, 340, false);
+  ok(-g.ball.vy > weak, 'a charged bounce beats a quick tap (CORE-05)');
+
+  /* ================================================ 6. anti-spam and miss */
+  sec('6. rate limit, multi-touch, miss (CORE-07/08)');
+  g = fresh(800, 600);
+  g.lastBounceAt = g.totalT - 1;
+  ok(K.attemptBounce(g, 400, 340, false), 'first tap lands');
+  const afterFirst = g.bounces;
+  ok(!K.attemptBounce(g, 400, 340, false), 'a second tap inside 100ms is ignored (CORE-08)');
+  eq(g.bounces, afterFirst, 'two simultaneous touches cannot double-apply a bounce (QA)');
+
+  g = fresh(800, 600);
+  g.ball.vx = 123; g.ball.vy = -45;
+  g.combo = 5; g.comboTimer = 1;
+  const sBefore = g.score;
+  ok(!K.attemptBounce(g, 400, 500, false), 'a click outside hitRadius is a miss');
+  eq(g.combo, 0, 'a miss breaks the combo (CORE-07)');
+  eq(g.score, sBefore, 'a miss scores nothing');
+  eq(g.ball.vx, 123, 'a miss does not touch velocity (CORE-07)');
+  eq(g.ball.vy, -45, 'a miss does not touch velocity (CORE-07)');
+  eq(g.state, 'play', 'a miss never kills (CORE-07)');
+  ok(g.rings.length > 0, 'a miss still gives feedback');
+
+  /* rapid tapping for 5 s must not run away (QA checklist) */
+  g = fresh(800, 600);
+  let nextTap = 0;
+  for (let i = 0; i < 300; i++){
+    g.ball.y = 300; g.ball.vy = 0;                    // keep it alive without playing for it
+    if (g.totalT >= nextTap){
+      g.ball.x = 400;
+      K.attemptBounce(g, 400, 340, false);
+      nextTap = g.totalT + CFG.bounceCooldown;
+    }
+    K.update(g, DT);
+  }
+  ok(g.bounces <= Math.ceil(5 / CFG.bounceCooldown) + 2,
+     'tapping 10/s for 5s cannot exceed the cooldown budget (QA)', g.bounces);
+  eq(g.state, 'play', 'rapid tapping keeps the run alive');
+
+  /* ================================================= 7. walls and dt clamp */
+  sec('7. walls (CORE-06) and the dt clamp (PHYS-01)');
+  g = fresh(800, 600);
+  g.ball.x = 8; g.ball.vx = -400; g.ball.vy = 0;
+  K.updateBall(g, DT, 0);
+  ok(g.ball.vx > 0, 'the left wall reflects horizontal velocity (CORE-06)');
+  eq(g.ball.x, g.ball.r, 'the ball is clamped inside the left wall');
+  near(g.ball.vx, 400 * CFG.wallRest, 1e-6, 'wall reflection damps to 0.75 (CORE-06)');
+  ok(g.ball.wAmp > 0, 'a wall impact triggers the wobble (PHYS-03)');
+
+  g = fresh(800, 600);
+  g.ball.x = 792; g.ball.vx = 400; g.ball.vy = 0;
+  K.updateBall(g, DT, 0);
+  ok(g.ball.vx < 0, 'the right wall reflects (CORE-06)');
+  eq(g.ball.x, 800 - g.ball.r, 'the ball is clamped inside the right wall');
+
+  /* ==================================================== 8. combo and score */
+  sec('8. combo window and cap (SCORE-01/02/03)');
+  g = fresh(800, 600);
+  for (let i = 0; i < 3; i++){
+    g.ball.y = 300; g.ball.vy = 0; g.lastBounceAt = g.totalT - 1;
+    K.attemptBounce(g, 400, 340, false);
+  }
+  eq(g.combo, 3, 'combo increments inside the window (SCORE-02)');
+  eq(g.score, 5 + 10 + 15, 'each bounce scores 5 x combo (SCORE-01)');
+  eq(g.maxCombo, 3, 'max combo tracked (SCORE-07)');
+
+  g = fresh(800, 600);
+  g.combo = 3; g.comboTimer = 0.01;
+  K.update(g, DT);
+  eq(g.combo, 0, 'combo expires when the window runs out (SCORE-02)');
+
+  g = fresh(800, 600);
+  g.combo = 9; g.comboTimer = 2; g.ball.y = 300; g.ball.vy = 0;
+  g.lastBounceAt = g.totalT - 1;
+  let s0 = g.score;
+  K.attemptBounce(g, 400, 340, false);
+  eq(g.combo, 10, 'combo reaches 10');
+  eq(g.score - s0, 50, 'combo 10 scores 5 x 10 (SCORE-01)');
+  g.lastBounceAt = g.totalT - 1; s0 = g.score;
+  K.attemptBounce(g, 400, 340, false);
+  eq(g.combo, 11, 'the counter keeps climbing past the cap');
+  eq(g.score - s0, 50, 'scoring is capped at x10 (SCORE-03)');
+
+  /* ================================================ 9. hazards and fairness */
+  sec('9. saw spawning: fairness, caps, pillar 3');
+  g = fresh(800, 600);
+  g.ball.y = 300; g.ball.x = 400;
+  let minSep = Infinity, allOffscreen = true, allVisible = true, maxSpeed = 0;
+  for (let i = 0; i < 400; i++){
+    g.hazards.length = 0;
+    const h = K.spawnSaw(g);
+    if (!h){ allOffscreen = false; break; }
+    minSep = Math.min(minSep, Math.abs(h.y - g.ball.y));
+    const entering = (h.vx > 0 && h.x < 0) || (h.vx < 0 && h.x > g.W);
+    if (!entering) allOffscreen = false;
+    const travel = Math.abs(g.ball.x - h.x) / Math.abs(h.vx);
+    if (travel < CFG.hazardMinVisible - 1e-9) allVisible = false;
+    maxSpeed = Math.max(maxSpeed, Math.abs(h.vx));
+  }
+  ok(minSep >= CFG.spawnMargin, 'every saw spawns >= 130px from the ball height (HAZ-02)', minSep);
+  ok(allOffscreen, 'saws always enter from an off-screen edge (HAZ-01)');
+  ok(allVisible, 'no saw can reach the ball column in under 1.5s (pillar 3)');
+  ok(maxSpeed <= CFG.sawSpeedMax + CFG.sawSpeedRampCap + 1e-6, 'saw speed is capped (DIFF-04)', maxSpeed);
+
+  g = fresh(800, 600);
+  for (let i = 0; i < 20; i++) K.spawnSaw(g);
+  eq(g.hazards.length, CFG.hazardCap, 'at most 5 hazards coexist (HAZ-04)');
+
+  g = fresh(800, 600);
+  const saw = K.spawnSaw(g);
+  ok(saw.warn > 0, 'a saw waits off-screen while its edge flash plays (pillar 3)');
+  ok(g.edgeWarns.length > 0, 'an edge warning is raised for the incoming saw (Phase 2)');
+  saw.warn = 0; saw.vx = 400; saw.x = g.W + CFG.sawExitPad + 1; saw.bobAmp = 0;
+  K.updateHazards(g, DT);
+  eq(g.hazards.length, 0, 'saws are culled once they leave the screen');
+
+  /* ============================================ 10. spike (Phase 3, HAZ-06) */
+  sec('10. falling spike: telegraph then drop');
+  g = fresh(800, 600);
+  g.ball.x = 400; g.ball.y = 300;
+  const sp = K.spawnSpike(g);
+  ok(!!sp && sp.kind === 'spike', 'a spike can be spawned');
+  eq(sp.x, 400, 'the spike targets where the ball WAS, not where it is (Phase 3)');
+  near(sp.warn, CFG.spikeWarnTime, 1e-9, 'the ceiling telegraph lasts 1s (pillar 3)');
+  g.ball.x = sp.x; g.ball.y = 200; g.ball.vx = 0; g.ball.vy = 0;
+  const warnSteps = Math.ceil(CFG.spikeWarnTime / DT);
+  for (let i = 0; i < warnSteps; i++) K.updateHazards(g, DT);
+  eq(g.state, 'play', 'the telegraph phase cannot kill');
+  let guard = 0, maxVy = 0;
+  while (g.state === 'play' && guard++ < 600){
+    K.updateHazards(g, DT);
+    if (sp.vy) maxVy = Math.max(maxVy, sp.vy);
+  }
+  ok(g.state === 'dying', 'the spike connects if the player does not move', g.state);
+  ok(maxVy <= CFG.spikeSpeedMax + 1e-6, 'spike fall speed is capped (pillar 4)', maxVy);
+  ok(guard < 600, 'the spike reached the ball in finite time');
+
+  g = fresh(800, 600);
+  g.elapsed = CFG.spikeGate - 1; g.spikeTimer = 0;
+  K.updateSpawners(g, DT);
+  eq(g.hazards.filter(h => h.kind === 'spike').length, 0, 'no spikes before the 16s gate');
+  g.elapsed = CFG.spikeGate; g.spikeTimer = 0;
+  K.updateSpawners(g, DT);
+  eq(g.hazards.filter(h => h.kind === 'spike').length, 1, 'spikes start after the gate');
+
+  /* =========================================== 11. seeker (Phase 3, HAZ-06) */
+  sec('11. seeker drone: gate, turn cap, dies on walls');
+  g = fresh(800, 600);
+  g.elapsed = CFG.seekerGate - 1; g.seekerTimer = 0;
+  K.updateSpawners(g, DT);
+  eq(g.hazards.filter(h => h.kind === 'seeker').length, 0, 'no drone before 60s (Phase 3)');
+  g.elapsed = CFG.seekerGate; g.seekerTimer = 0;
+  K.updateSpawners(g, DT);
+  const drones = g.hazards.filter(h => h.kind === 'seeker');
+  eq(drones.length, 1, 'a drone appears after the gate');
+  ok(drones[0].warn > 0, 'the drone telegraphs before it may connect (pillar 3)');
+  for (let i = 0; i < 5; i++){ g.seekerTimer = 0; K.updateSpawners(g, DT); }
+  eq(g.hazards.filter(h => h.kind === 'seeker').length, CFG.seekerCap, 'at most one drone (pillar 4)');
+
+  g = fresh(800, 600);
+  const sk = K.spawnSeeker(g);
+  sk.warn = 0; sk.x = 200; sk.y = 200; sk.cy = 200; sk.ang = Math.PI; sk.life = 99;
+  g.ball.x = 600; g.ball.y = 400;
+  const a0 = sk.ang;
+  K.updateHazards(g, DT);
+  const turned = Math.abs(angDiff(a0, sk.ang));
+  ok(turned <= CFG.seekerTurnRate * DT + 1e-9, 'the drone turn rate is capped (pillar 4)', turned);
+  near(Math.hypot(sk.x - 200, sk.cy - 200), CFG.seekerSpeed * DT, 1e-6, 'the drone flies at its fixed slow speed');
+
+  g = fresh(800, 600);
+  const sk2 = K.spawnSeeker(g);
+  sk2.warn = 0; sk2.x = 700; sk2.y = 300; sk2.cy = 300; sk2.ang = 0; sk2.life = 99; sk2.entered = true;
+  g.ball.x = 400; g.ball.y = 300;
+  let steps = 0;
+  while (g.hazards.indexOf(sk2) >= 0 && steps++ < 300) K.updateHazards(g, DT);
+  ok(g.hazards.indexOf(sk2) < 0, 'the drone dies on a wall (Phase 3)', steps);
+  ok(g.particles.length > 0, 'the crash produces particles');
+  eq(g.state, 'play', 'a crashing drone does not hurt the player');
+
+  g = fresh(800, 600);
+  const sk3 = K.spawnSeeker(g);
+  sk3.warn = 0; sk3.x = 400; sk3.y = 100; sk3.cy = 100; sk3.life = 0.001;
+  K.updateHazards(g, DT);
+  ok(g.hazards.indexOf(sk3) < 0, 'the drone cannot chase forever - lifetime cap (pillar 4)');
+
+  /* ============================================ 12. shield and hazard death */
+  sec('12. hazard contact and the shield (HAZ-03, PICK-02/05)');
+  g = fresh(800, 600);
+  g.hazards.length = 0;
+  pinnedSaw(g, 400, 300, 20);
+  K.updateHazards(g, DT);
+  eq(g.state, 'dying', 'unshielded hazard contact kills (HAZ-03)');
+
+  g = fresh(800, 600);
+  g.hazards.length = 0;
+  g.shield = true;
+  pinnedSaw(g, 400, 300, 20);
+  K.updateHazards(g, DT);
+  eq(g.state, 'play', 'a shield absorbs exactly one hit (HAZ-03)');
+  eq(g.shield, false, 'the shield is consumed (PICK-02)');
+  eq(g.hazards.length, 0, 'the absorbed hazard is destroyed');
+  ok(g.particles.length > 0, 'shield pop: burst (PICK-05)');
+  ok(g.rings.length > 0, 'shield pop: ring (PICK-05)');
+  ok(g.texts.some(t => /shield/i.test(t.txt)), 'shield pop: message (PICK-05)');
+  ok(g.ball.vy < 0, 'shield pop nudges the ball up');
+  g.hazards.length = 0;
+  pinnedSaw(g, 400, 300, 20);
+  K.updateHazards(g, DT);
+  eq(g.state, 'dying', 'the next hazard kills with no shield left (QA)');
+
+  /* ============================================== 13. near miss (Phase 2) */
+  sec('13. near-miss bonus (Phase 2)');
+  g = fresh(800, 600);
+  g.hazards.length = 0;
+  const nm = pinnedSaw(g, 400, 300 + 20 + g.ball.r * CFG.hazardKillPad + 10, 20);
+  const nmScore = g.score;
+  K.updateHazards(g, DT);
+  K.updateHazards(g, DT);
+  eq(g.score, nmScore, 'hovering inside the margin is not enough');
+  nm.y += 5; nm.cy = nm.y;
+  K.updateHazards(g, DT);
+  eq(g.score, nmScore + CFG.nearMissPoints, 'skimming a hazard pays +15 (Phase 2)');
+  ok(g.texts.some(t => /close/i.test(t.txt)), 'near miss says "close!"');
+  nm.y += 5; nm.cy = nm.y;
+  K.updateHazards(g, DT);
+  eq(g.score, nmScore + CFG.nearMissPoints, 'a near miss pays only once per hazard');
+  eq(g.state, 'play', 'a near miss does not kill');
+
+  /* ==================================================== 14. pickup rules */
+  sec('14. pickups: margin, cap, shield rule, despawn (PICK-01..04)');
+  g = fresh(800, 600);
+  let minD = Infinity, spawned = 0;
+  for (let i = 0; i < 500; i++){
+    g.pickups.length = 0;
+    const p = K.spawnPickup(g, 'star');
+    if (!p) continue;
+    spawned++;
+    minD = Math.min(minD, Math.hypot(p.x - g.ball.x, p.y - g.ball.y));
+  }
+  ok(spawned > 400, 'stars spawn reliably', spawned);
+  ok(minD >= CFG.spawnMargin, 'pickups never spawn within 130px of the ball (PICK-03)', minD);
+
+  g = fresh(800, 600);
+  for (let i = 0; i < 12; i++) K.spawnPickup(g, 'star');
+  eq(g.pickups.length, CFG.pickupCap, 'at most 4 pickups coexist (PICK-04)');
+  eq(K.spawnPickup(g, 'star'), null, 'the cap refuses new pickups');
+
+  g = fresh(800, 600);
+  g.pickups.length = 0; g.shield = true;
+  eq(K.spawnPickup(g, 'shield'), null, 'no shield spawns while one is held (PICK-02)');
+  g.shield = false;
+  ok(!!K.spawnPickup(g, 'shield'), 'a shield spawns when none is held (PICK-02)');
+
+  g = fresh(800, 600);
+  g.pickups.length = 0; g.ball.x = -9999; g.ball.y = -9999;
+  const st = K.spawnPickup(g, 'star');
+  eq(st.life, CFG.starLife, 'a star lives 7s (PICK-01)');
+  for (let i = 0; i < Math.ceil(CFG.starLife / DT) + 3; i++) K.updatePickups(g, DT);
+  eq(g.pickups.length, 0, 'the star despawns when its life runs out (PICK-01)');
+
+  g = fresh(800, 600);
+  g.pickups.length = 0; g.ball.x = -9999; g.ball.y = -9999;
+  const st2 = K.spawnPickup(g, 'star');
+  st2.life = 1.0;
+  K.updatePickups(g, DT);
+  ok(st2.life < CFG.starBlink, 'the blink window covers the final 1.6s (PICK-01)');
+
+  /* ================================================== 15. pickup effects */
+  sec('15. slow-mo, magnet, heavy star (Phase 3)');
+  g = fresh(800, 600);
+  g.pickups.length = 0;
+  let p = K.spawnPickup(g, 'slowmo');
+  g.ball.x = p.x; g.ball.y = p.y;
+  g.elapsed = 1000;                                   // gravity at its cap
+  const gBefore = K.gravityNow(g);
+  K.updatePickups(g, DT);
+  near(g.slowmoT, CFG.slowmoTime, 1e-6, 'slow-mo bubble lasts 4s');
+  near(K.gravityNow(g), gBefore * CFG.slowmoGravityMul, 1e-6, 'slow-mo halves gravity');
+  ok(g.pickups.length === 0, 'the bubble is consumed on pickup');
+  g.slowmoT = 0.01;
+  K.tickEffects(g, DT);
+  eq(g.slowmoT, 0, 'slow-mo expires cleanly');
+
+  g = fresh(800, 600);
+  g.pickups.length = 0;
+  p = K.spawnPickup(g, 'magnet');
+  g.ball.x = p.x; g.ball.y = p.y;
+  K.updatePickups(g, DT);
+  near(g.magnetT, CFG.magnetTime, 1e-6, 'magnet lasts 6s');
+  g.pickups.length = 0;
+  g.ball.x = 400; g.ball.y = 300;
+  const star = K.spawnPickup(g, 'star');
+  star.x = 500; star.y = 300;
+  K.updatePickups(g, DT);
+  ok(star.pulled, 'a star inside the radius is flagged as pulled');
+  ok(Math.abs(star.x - 400) < 100, 'the magnet drags stars toward the ball', star.x);
+  star.x = 400 + CFG.magnetRadius + 60; star.y = 300; star.pulled = false;
+  const farX = star.x;
+  K.updatePickups(g, DT);
+  eq(star.x, farX, 'stars beyond the radius are unaffected');
+  g.magnetT = 0;
+
+  g = fresh(800, 600);
+  g.pickups.length = 0;
+  p = K.spawnPickup(g, 'heavy');
+  g.ball.x = p.x; g.ball.y = p.y;
+  const hs = g.score;
+  g.elapsed = 1000;
+  K.updatePickups(g, DT);
+  eq(g.score - hs, CFG.heavyPoints, 'a heavy star pays +200');
+  near(g.heavyT, CFG.heavyTime, 1e-6, 'heavy star debt lasts 8s');
+  ok(K.gravityNow(g) > CFG.gravityMax, 'heavy star raises gravity above the normal cap');
+  ok(K.gravityNow(g) <= CFG.gravityHardCap, '...but never past the hard cap (DIFF-05)');
+  g.heavyT = 0.01; K.tickEffects(g, DT);
+  eq(g.heavyT, 0, 'heavy debt expires cleanly');
+
+  /* stacking is capped (pillar 4) */
+  g = fresh(800, 600);
+  g.slowmoT = CFG.slowmoStackCap; g.magnetT = CFG.magnetStackCap; g.heavyT = CFG.heavyStackCap;
+  g.pickups.length = 0;
+  ['slowmo', 'magnet', 'heavy'].forEach(t => {
+    const q = K.spawnPickup(g, t);
+    if (q){ g.ball.x = q.x; g.ball.y = q.y; K.updatePickups(g, DT); }
+    g.pickups.length = 0;
+  });
+  ok(g.slowmoT <= CFG.slowmoStackCap, 'slow-mo stacking is capped', g.slowmoT);
+  ok(g.magnetT <= CFG.magnetStackCap, 'magnet stacking is capped', g.magnetT);
+  ok(g.heavyT <= CFG.heavyStackCap, 'heavy stacking is capped', g.heavyT);
+
+  /* ================================================= 16. death and states */
+  sec('16. death sequence, slow-mo, restart lock (UI-04, Phase 2)');
+  g = fresh(800, 600);
+  g.score = 1234; g.bounces = 42; g.maxCombo = 12; g.elapsed = 65.4;
+  g.ball.y = g.H - g.ball.r + 5; g.ball.vy = 100;
+  K.update(g, DT);
+  eq(g.state, 'dying', 'floor contact ends the run (CORE-04)');
+  ok(g.ball.dead, 'the ball is marked dead');
+  ok(g.particles.length > 0, 'death bursts into particles');
+  let tt = 0;
+  K.updateFlow(g, DT);
+  ok(g.timeScale < 1 && g.timeScale > CFG.deathTimeScale, 'death ramps into slow motion (Phase 2)', g.timeScale);
+  while (g.state === 'dying' && tt < 3){ K.updateFlow(g, DT); tt += DT; }
+  eq(g.state, 'over', 'dying resolves to over');
+  near(tt, CFG.deathSlowmo, 0.05, 'the slow-motion beat lasts ~250ms');
+  near(g.timeScale, CFG.deathTimeScale, 0.02, 'time settles at the slow-mo scale');
+  ok(!g.panelShown, 'the panel is still held back');
+  ok(!K.tryRestart(g), 'restart is locked immediately after death (UI-04)');
+  eq(g.best, 1234, 'a new best is recorded (SCORE-06)');
+  ok(g.newBest, 'the run is flagged NEW BEST (SCORE-07)');
+  eq(K.LS.get(K.KEYS.best), '1234', 'the best score is written to localStorage (SCORE-06)');
+
+  /* ============================================= 17. pause / resume (UI-06) */
+  sec('17. pause and resume leave state intact (UI-06)');
+  g = fresh(800, 600);
+  g.ball.x = 400; g.ball.y = 300; g.ball.vx = 120; g.ball.vy = -80;
+  g.elapsed = 12; g.score = 77; g.combo = 4; g.comboTimer = 1.5;
+  g.shield = true; g.slowmoT = 2; g.heavyT = 3;
+  g.hazards.length = 0; g.pickups.length = 0;
+  K.spawnSaw(g);
+  const snap = JSON.stringify({
+    x: g.ball.x, y: g.ball.y, vx: g.ball.vx, vy: g.ball.vy, spin: g.ball.spin,
+    e: g.elapsed, s: g.score, c: g.combo, ct: g.comboTimer, sh: g.shield,
+    sl: g.slowmoT, hv: g.heavyT, hz: g.hazards.map(h => [h.x, h.y, h.rot]),
+  });
+  ok(K.pauseGame(g, 'user'), 'pause works from play');
+  eq(g.state, 'paused', 'state becomes paused');
+  ok(!doc.getElementById('pause').classList.contains('hidden'), 'the pause overlay is shown');
+  eq(doc.activeElement, doc.getElementById('resumeBtn'), 'focus moves to Resume (A11Y-02)');
+  pump(g, 240);                                        // 4 frozen seconds
+  eq(JSON.stringify({
+    x: g.ball.x, y: g.ball.y, vx: g.ball.vx, vy: g.ball.vy, spin: g.ball.spin,
+    e: g.elapsed, s: g.score, c: g.combo, ct: g.comboTimer, sh: g.shield,
+    sl: g.slowmoT, hv: g.heavyT, hz: g.hazards.map(h => [h.x, h.y, h.rot]),
+  }), snap, 'nothing moves or decays while paused');
+  ok(K.resumeGame(g), 'resume works');
+  eq(g.state, 'play', 'state returns to play');
+  ok(doc.getElementById('pause').classList.contains('hidden'), 'the pause overlay hides');
+  pump(g, 10);
+  ok(g.ball.y !== 300, 'physics resumes after unpause');
+  eq(g.score, 77, 'the score survives a pause');
+
+  const menuG = K.newGame(800, 600);
+  ok(!K.pauseGame(menuG, 'user'), 'pause does nothing outside a run');
+  ok(!K.resumeGame(menuG), 'resume does nothing outside a pause');
+  g = fresh(800, 600);
+  ok(K.pauseGame(g, 'tab'), 'auto-pause on tab hide is representable (UI-06)');
+  eq(g.pausedBy, 'tab', 'the pause records its cause');
+  K.quitToMenu(g);
+  eq(g.state, 'menu', 'quit returns to the menu');
+  eq(g.score, 0, 'quit clears the run');
+
+  /* ============================================== 18. reduced motion (A11Y) */
+  sec('18. prefers-reduced-motion (A11Y-01)');
+  const mqReduce = win.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  eq(K.G.reducedMotion, mqReduce, 'the reduced-motion flag follows the media query');
+  log.push({t:'s', m:'  info prefers-reduced-motion in this browser: ' + mqReduce});
+  g = fresh(800, 600);
+  g.reducedMotion = true;
+  g.shake = 20;
+  K.fx.shakeBy(g, 40);
+  eq(g.shake, 20, 'shake is not added under reduced motion');
+  K.fx.updateFx(g, DT);
+  ok(g.shake < 20, 'existing shake still decays');
+  eq(g.hue, CFG.bgHueBase, 'the background hue stops shifting');
+  const dotY = g.bgDots[0].y;
+  K.fx.updateFx(g, DT);
+  eq(g.bgDots[0].y, dotY, 'background drift stops');
+  g.edgeWarns.length = 0;
+  K.fx.addEdgeWarn(g, 'left', 100, 'a', 'b');
+  eq(g.edgeWarns.length, 0, 'edge flashes are suppressed');
+
+  g = K.newGame(800, 600);
+  g.reducedMotion = true;
+  g.ball.x = 400; g.ball.y = 200; g.ball.vy = 500;
+  pump(g, 60);
+  eq(g.state, 'menu', 'the menu stays on the menu');
+  eq(g.ball.y, 200, 'the attract-mode demo ball is parked (A11Y-01)');
+  eq(g.ball.vy, 0, 'the parked demo ball has no velocity');
+
+  g = fresh(800, 600);
+  g.reducedMotion = true;
+  g.ball.y = 300; g.ball.vy = 0;
+  pump(g, 30);
+  ok(g.ball.y > 300, 'gameplay physics still runs under reduced motion', g.ball.y);
+
+  /* ================================================= 19. fx budget (§6) */
+  sec('19. fx budget caps (guide §6)');
+  g = fresh(800, 600);
+  for (let i = 0; i < 200; i++) K.fx.burst(g, 100, 100, '#fff', 5, 100);
+  ok(g.particles.length <= CFG.particleCap, 'particles capped at 120', g.particles.length);
+  for (let i = 0; i < 60; i++) K.fx.addRing(g, 100, 100, 1, 10, 0.5, '#fff');
+  ok(g.rings.length <= CFG.ringCap, 'rings capped at 6', g.rings.length);
+  for (let i = 0; i < 60; i++) K.fx.addText(g, 100, 100, 'x', '#fff');
+  ok(g.texts.length <= CFG.textCap, 'floating texts capped at 8', g.texts.length);
+  for (let i = 0; i < 60; i++) K.fx.addEdgeWarn(g, 'left', 100, 'a', 'b');
+  ok(g.edgeWarns.length <= CFG.edgeWarnCap, 'edge warnings capped', g.edgeWarns.length);
+
+  /* ============================================== 20. hit-stop (Phase 2) */
+  sec('20. hit-stop freezes physics, keeps the wobble (Phase 2)');
+  g = fresh(800, 600);
+  g.lastBounceAt = g.totalT - 1;
+  K.attemptBounce(g, 400, 340, false);
+  const yAtStop = g.ball.y, phaseAtStop = g.ball.wPhase, hzAtStop = g.hazards.length;
+  K.update(g, DT);
+  eq(g.ball.y, yAtStop, 'the ball does not move during hit-stop');
+  ok(g.ball.wPhase !== phaseAtStop, 'the jelly wobble keeps oscillating');
+  ok(g.hitStop >= 0, 'hit-stop counts down');
+  pump(g, 10);
+  ok(g.ball.y !== yAtStop, 'physics resumes once hit-stop ends');
+  eq(g.hitStop, 0, 'hit-stop expires');
+
+  /* ================================================= 21. attract mode */
+  sec('21. attract mode (UI-02)');
+  g = K.newGame(800, 600);
+  g.reducedMotion = false;                             // exercise the demo itself
+  g.ball.y = 420; g.ball.vy = 100;
+  const as0 = g.score, ab0 = g.bounces;
+  pump(g, 900);                                        // 15 s of demo
+  eq(g.state, 'menu', 'attract mode never leaves the menu');
+  eq(g.score, as0, 'attract mode does not score (UI-02)');
+  eq(g.bounces, ab0, 'attract mode does not count bounces');
+  eq(g.combo, 0, 'attract mode does not build combo');
+  ok(g.ball.y < g.H, 'the demo ball never hits the floor', g.ball.y);
+  eq(g.hazards.length, 0, 'no hazards spawn on the menu');
+
+  /* ================================================== 22. audio guards */
+  sec('22. audio synthesis and mute (AUD-01..06)');
+  ok(!K.Snd.ctx || K.Snd.ctx instanceof win.AudioContext, 'audio is Web Audio only (AUD-01)');
+  ok((function(){
+    try { K.Snd.bounce(1); K.Snd.miss(); K.Snd.die(); K.Snd.slowmo(); K.Snd.magnet(); K.Snd.heavy();
+          K.Snd.spikeWarn(); K.Snd.seekerWarn(); K.Snd.nearMiss(); K.Snd.pause(); K.Snd.star();
+          K.Snd.shieldPickup(); K.Snd.shieldPop(); K.Snd.spikeDrop(); K.Snd.seekerDie();
+          K.Snd.slowmoEnd(); K.Snd.start(); K.Snd.resume(); K.Snd.wall(); return true; }
+    catch (e){ return 'threw: ' + e.message; }
+  })() === true, 'every sound is safe to call before the context exists (COMPAT-01)');
+  K.Snd.ensure();                                      // normally only from a gesture (AUD-02)
+  ok(K.Snd.master || !K.Snd.available, 'ensure() builds a graph or degrades cleanly (COMPAT-01)');
+  if (K.Snd.master) ok(K.Snd.master.gain.value <= 0.2, 'master gain <= 0.2 (AUD-04)', K.Snd.master.gain.value);
+  ok(CFG.pentatonic.length === 10 && CFG.pentatonic.every((v, i, a) => i === 0 || v > a[i - 1]),
+     'the bounce ladder is a rising pentatonic set (AUD-03)');
+  const mutedBefore = K.Snd.muted;
+  K.toggleMute();
+  eq(K.Snd.muted, !mutedBefore, 'mute toggles (AUD-05)');
+  eq(doc.getElementById('mute').getAttribute('aria-pressed'), String(!mutedBefore), 'the mute button shows its state (AUD-05)');
+  ok(/OFF/.test(doc.getElementById('mute').textContent) === !mutedBefore, 'the mute button label flips');
+  ok(K.LS.get(K.KEYS.mute) !== null, 'the mute preference is remembered');
+  if (K.Snd.master) eq(K.Snd.master.gain.value, 0, 'muting zeroes the master gain');
+  K.toggleMute();
+  eq(K.Snd.muted, mutedBefore, 'mute toggles back');
+  if (K.Snd.master) ok(K.Snd.master.gain.value <= 0.2, 'master gain stays <= 0.2 when unmuted (AUD-04)');
+
+  /* ============================================= 23. real input plumbing */
+  sec('23. pointer and keyboard plumbing (CORE-10, UI-04/06, A11Y-02)');
+  const G = K.G;
+  K.startGame(G);
+  G.ball.x = 200; G.ball.y = 150; G.ball.vx = 0; G.ball.vy = 0;
+  G.lastBounceAt = G.totalT - 1;
+  const bBefore = G.bounces;
+  doc.getElementById('game').dispatchEvent(new win.PointerEvent('pointerdown',
+    { clientX: 200, clientY: 190, bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, pointerType: 'touch' }));
+  eq(G.bounces, bBefore + 1, 'a touch pointerdown on the canvas bounces the ball (CORE-10)');
+  ok(G.ball.vy < 0, 'the pointer impulse is applied');
+
+  doc.getElementById('game').dispatchEvent(new win.PointerEvent('pointerdown',
+    { clientX: 20, clientY: 20, bubbles: true, cancelable: true, pointerId: 2, isPrimary: false, pointerType: 'touch' }));
+  eq(G.combo, 0, 'a miss through a real pointer event breaks the combo (CORE-07)');
+
+  win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'KeyP', key: 'p', bubbles: true, cancelable: true }));
+  eq(G.state, 'paused', 'P pauses (UI-06)');
+  eq(doc.activeElement, doc.getElementById('resumeBtn'), 'the pause dialog takes focus (A11Y-02)');
+  win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', bubbles: true, cancelable: true }));
+  eq(G.state, 'play', 'Esc resumes (UI-06)');
+
+  K.die(G);
+  G.overAt = win.performance.now() - 100000;           // simulate the lock having expired
+  K.updateFlow(G, 1); K.updateFlow(G, 0);
+  eq(G.state, 'over', 'the death sequence completes');
+  ok(G.panelShown, 'the game-over panel is shown once the lock window passes');
+  win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true, cancelable: true }));
+  eq(G.state, 'play', 'Space restarts from game over (UI-04)');
+
+  /* ================================================ 24. game-over screen */
+  sec('24. game-over stats (SCORE-07)');
+  G.score = 1234; G.bounces = 42; G.maxCombo = 12; G.elapsed = 65.4;
+  G.best = 900; G.newBest = true; G.panelShown = false;
+  K.die(G);
+  G.overAt = win.performance.now() - 100000;
+  K.updateFlow(G, 1); K.updateFlow(G, 0);
+  eq(doc.getElementById('finalScoreVal').textContent, '1234', 'shows the score');
+  eq(doc.getElementById('finalBounces').textContent, '42', 'shows the bounce count');
+  eq(doc.getElementById('finalCombo').textContent, '\u00d710', 'shows max combo, capped for display');
+  eq(doc.getElementById('finalTime').textContent, '65s', 'shows the run time');
+  eq(doc.getElementById('finalBest').textContent, '1234', 'shows the best');
+  eq(doc.getElementById('newBest').style.display, 'inline-block', 'shows the NEW BEST flag');
+  eq(doc.getElementById('retryBtn'), doc.activeElement, 'focus lands on Retry (A11Y-02)');
+
+  /* ===================================================== 25. HUD (UI-03) */
+  sec('25. HUD (UI-03, SCORE-04)');
+  K.startGame(G);
+  G.score = 4321; G.best = 9999; G.combo = 12; G.comboTimer = 1.1;
+  G.shield = true; G.slowmoT = 3.2; G.magnetT = 0; G.heavyT = 0;
+  K.updateHud(G);
+  eq(doc.getElementById('score').textContent, '4321', 'HUD shows the score');
+  eq(doc.getElementById('best').textContent, 'BEST 9999', 'HUD shows the best');
+  eq(doc.getElementById('combo').textContent, '\u00d710 MAX', 'HUD shows MAX at the cap (SCORE-03)');
+  near(parseFloat(doc.getElementById('comboBar').style.width), 1.1 / CFG.comboWindow * 100, 1.5,
+       'the combo bar shows the remaining window (SCORE-04)');
+  const fxText = doc.getElementById('effects').textContent;
+  ok(/SHIELD/.test(fxText), 'the shield effect has a visible pill');
+  ok(/SLOW/.test(fxText), 'the slow-mo effect has a visible pill');
+  G.combo = 0; G.shield = false; G.slowmoT = 0;
+  K.updateHud(G);
+  eq(doc.getElementById('comboBox').style.opacity, '0', 'the combo readout hides below x2');
+  eq(doc.getElementById('effects').textContent, '', 'pills clear when no effect is live');
+
+  /* ============================================== 26. no globals / no assets */
+  sec('26. hygiene: zero globals, zero assets, zero network (Phase 1, PORT-01)');
+  const prototypeGlobals = ['CFG', 'Snd', 'LS', 'DOM', 'canvas', 'ctx', 'W', 'H', 'TAU', 'clamp', 'rand',
+    'lerpAngle', 'state', 'score', 'best', 'newBest', 'combo', 'comboTimer', 'maxCombo', 'bounces',
+    'elapsed', 'totalT', 'lastBounceAt', 'shake', 'dotKick', 'shield', 'overAt', 'hazardTimer',
+    'starTimer', 'shieldTimer', 'hazards', 'pickups', 'particles', 'rings', 'texts', 'ball', 'bgDots',
+    'resize', 'reset', 'burst', 'addText', 'addScore', 'attemptBounce', 'spawnHazard', 'spawnPickup',
+    'die', 'startGame', 'updateFx', 'update', 'starPath', 'drawPickup', 'drawSaw', 'drawTrail',
+    'drawBall', 'render', 'hud', 'frame', 'last', 'toggleMute', 'muteBtn', 'scoreEl', 'bestEl',
+    'comboBox', 'comboEl', 'comboBar', 'hudScore', 'menuEl', 'overEl'];
+  const leaked = prototypeGlobals.filter(n => {
+    if (!Object.prototype.hasOwnProperty.call(win, n)) return false;
+    const v = win[n];
+    /* elements with a matching id are exposed on window by the browser itself;
+     * that is named access, not a leaked script global. */
+    return !(v instanceof win.Element) && !(v instanceof win.Document);
+  });
+  eq(leaked.length, 0, 'none of the prototype globals leak into window (Phase 1)', leaked.join(', '));
+  eq(typeof win.__KEEPUP__, 'object', 'the debug build exposes exactly one namespaced hook');
+
+  const html = doc.documentElement.outerHTML;
+  ok(!/\ssrc\s*=/.test(html), 'no external script or image references (PORT-01)');
+  ok(!/\shref\s*=/.test(html), 'no external stylesheet or link references (PORT-01)');
+  ok(!/https?:\/\//.test(html), 'no absolute URLs anywhere (PORT-01)');
+  ok(!/<img|background-image|\.png|\.jpe?g|\.gif|\.webp|\.svg|\.mp3|\.wav|\.ogg|\.woff/i.test(html),
+     'no bitmap, font or audio assets (UI-05, AUD-01)');
+  ok(/<style>/.test(html), 'styles are inlined');
+  ok(/:focus-visible/.test(html), 'focus styles exist for keyboard users (A11Y-02)');
+  ok(/prefers-reduced-motion/.test(html), 'a reduced-motion media query exists (A11Y-01)');
+  ok(!/shadowBlur/.test(html), 'no shadowBlur in the render path (PERF-01)');
+  ok(/role="dialog"/.test(html) && /aria-modal="true"/.test(html), 'overlays are exposed as dialogs');
+  ok(/aria-live="polite"/.test(html), 'a live region announces run results');
+
+  /* ============================================== 27. storage degradation */
+  sec('27. storage degradation (COMPAT-01, SCORE-06)');
+  ok(typeof K.LS.available === 'boolean', 'storage availability is probed, not assumed');
+  ok((function(){
+    try { K.LS.get('keepup.__probe'); K.LS.set('keepup.__probe', '1'); K.LS.num('keepup.__probe', 0);
+          K.LS.bool('keepup.__probe', false); return true; }
+    catch (e){ return false; }
+  })(), 'the storage helpers never throw');
+  eq(K.LS.num('keepup.__nope', 7), 7, 'a missing numeric key falls back to its default');
+  let blocked = false, patched = false, restored = null;
+  const realStorage = (function(){ try { return win.localStorage; } catch (e){ return null; } })();
+  try {
+    Object.defineProperty(win, 'localStorage', { configurable: true, get(){ throw new Error('blocked'); } });
+    patched = true;
+    try {
+      K.LS.get('x'); K.LS.set('x', '1'); K.LS.num('x', 0); K.LS.bool('x', false);
+      blocked = true;
+    } catch (e){ blocked = false; }
+    /* Chrome makes localStorage an own window property, so `delete` would remove it
+     * outright - put the captured Storage object back instead. */
+    Object.defineProperty(win, 'localStorage', { configurable: true, writable: true, value: realStorage });
+    try { restored = typeof win.localStorage; } catch (e){ restored = 'still throwing'; }
+  } catch (e){ patched = false; }
+  if (patched){
+    ok(blocked, 'a throwing localStorage is swallowed silently (private browsing)');
+    eq(restored, 'object', 'real storage is back after the simulation');
+    ok(K.LS.set('keepup.__probe', '1'), 'writing works again after the simulation');
+  } else {
+    skipped('blocked-localStorage simulation', 'window.localStorage is not configurable here');
+  }
+
+  /* ================================================== 28. resize safety */
+  sec('28. resize mid-run (QA checklist)');
+  const oldW = f.style.width, oldH = f.style.height;
+  f.style.width = '400px'; f.style.height = '300px';
+  await sleep(120);
+  K.startGame(G);
+  G.ball.x = 5000; G.ball.y = 5000;
+  win.dispatchEvent(new win.Event('resize'));
+  eq(G.W, 400, 'the playfield tracks the new window width');
+  eq(G.H, 300, 'the playfield tracks the new window height');
+  ok(G.ball.x >= G.ball.r && G.ball.x <= G.W - G.ball.r, 'the ball is pulled back inside horizontally', G.ball.x);
+  ok(G.ball.y <= G.H - G.ball.r, 'a shrinking window cannot drop the ball through the floor', G.ball.y);
+  eq(cv.width, Math.round(400 * G.dpr), 'the canvas backing store is resized');
+  f.style.width = oldW || '420px'; f.style.height = oldH || '320px';
+  await sleep(120);
+  win.dispatchEvent(new win.Event('resize'));
+
+  /* ============================================ 29. the dt clamp in place */
+  sec('29. dt clamp (PHYS-01)');
+  K.startGame(G);
+  const t0 = win.performance.now();
+  K.advance(t0);
+  const dtBig = K.advance(t0 + 5000);
+  near(dtBig, CFG.fpsFloorDt, 1e-9, 'a 5s stall is clamped to exactly 1/30s (QA: tab away 30s)');
+  const dtNeg = K.advance(t0);
+  eq(dtNeg, 0, 'a backwards clock cannot produce a negative dt');
+  const dtSmall = K.advance(t0 + 16);
+  near(dtSmall, 0.016, 0.002, 'a normal frame is not clamped');
+
+  /* =================================== 30. shipped + module builds render */
+  sec('30. shipped build and ES module build both run');
+  await sleep(1200);
+  const pwin = prod.contentWindow, pdoc = prod.contentDocument;
+  const pfatal = pdoc.getElementById('fatal');
+  ok(!pfatal || pfatal.classList.contains('hidden'), 'index.html has no fatal banner',
+     pfatal && pfatal.textContent);
+  eq(typeof pwin.__KEEPUP__, 'undefined', 'the shipped build defines no debug global');
+  ok(!pdoc.getElementById('menu').classList.contains('hidden'), 'index.html shows the menu');
+  const pcv = pdoc.getElementById('game');
+  const pctx = pcv.getContext('2d');
+  ok(pcv.width > 0, 'index.html sized its canvas');
+  const canvasSum = () => {
+    const d = pctx.getImageData(0, 0, pcv.width, pcv.height).data;
+    let s = 0;
+    for (let i = 0; i < d.length; i++) s += d[i];
+    return s;
+  };
+  ok(canvasSum() > 0, 'index.html paints the canvas (the rAF loop runs)');
+
+  /* Drive the shipped build through its real UI. */
+  pdoc.getElementById('startBtn').click();
+  await sleep(150);
+  ok(pdoc.getElementById('menu').classList.contains('hidden'), 'clicking START begins a run (shipped build)');
+  ok(canvasSum() > 0, 'the shipped build keeps painting during play');
+
+  /* The browser's rAF scheduling inside iframes is unreliable under headless
+   * virtual time, so the frame path itself is verified deterministically on the
+   * debug frame below, and the real rAF loop is verified by screenshot diffs in
+   * tools/verify.ps1. */
+  const mdoc = mod.contentDocument, mfatal = mdoc.getElementById('fatal');
+  ok(!!mdoc, 'dev.html loaded over http');
+  ok(!mfatal || mfatal.classList.contains('hidden'), 'dev.html has no fatal banner',
+     mfatal && mfatal.textContent);
+  const mctx = mdoc.getElementById('game').getContext('2d');
+  let msum = 0;
+  try { msum = Array.from(mctx.getImageData(0, 120, 200, 1).data).reduce((a, b) => a + b, 0); } catch (e){ msum = 0; }
+  ok(msum > 0, 'dev.html (ES modules) boots and paints - the module graph resolves');
+  ok(!mdoc.getElementById('menu').classList.contains('hidden'), 'dev.html shows the menu');
+
+  /* ============================ 31. the frame path, driven deterministically */
+  sec('31. advance -> update -> HUD -> draw (the production frame path)');
+  K.startGame(G);
+  ok(!doc.getElementById('pauseBtn').classList.contains('hidden'), 'the pause control appears during a run');
+  const lcv = doc.getElementById('game');
+  const lctx = lcv.getContext('2d');
+  const liveSum = () => {
+    const d = lctx.getImageData(0, 0, lcv.width, lcv.height).data;
+    let s = 0;
+    for (let i = 0; i < d.length; i++) s += d[i];
+    return s;
+  };
+  let ft = win.performance.now();
+  K.frame(ft);
+  const fa = liveSum();
+  for (let i = 0; i < 40; i++){ ft += 16.7; K.frame(ft); }
+  const fb = liveSum();
+  ok(fa > 0, 'the frame path paints');
+  ok(fb !== fa, 'successive frames change the picture');
+  ok(G.elapsed > 0.5, 'the run clock advanced through the frame path', G.elapsed);
+  ok(G.ball.y !== G.H * 0.4, 'the ball moved through the frame path');
+
+  /* =========================== 32. leave a rich scene for visual inspection */
+  sec('32. composed scene (eyeball the first iframe)');
+  K.startGame(G);
+  G.elapsed = 65;
+  G.slowmoT = 3; G.magnetT = 4; G.heavyT = 5;
+  G.hazards.length = 0; G.pickups.length = 0;
+  const v1 = K.spawnSaw(G); if (v1){ v1.warn = 0; v1.x = 110; v1.y = 110; v1.cy = 110; v1.bobAmp = 0; }
+  const v2 = K.spawnSaw(G); if (v2){ v2.warn = 0; v2.x = 300; v2.y = 230; v2.cy = 230; v2.bobAmp = 0; }
+  const v3 = K.spawnSpike(G); if (v3){ v3.warn = 0.55; v3.x = 200; }
+  const v4 = K.spawnSeeker(G); if (v4){ v4.warn = 0; v4.x = 330; v4.y = 80; v4.cy = 80; }
+  const q1 = K.spawnPickup(G, 'star');   if (q1){ q1.x = 80;  q1.y = 80; }
+  const q2 = K.spawnPickup(G, 'shield'); if (q2){ q2.x = 350; q2.y = 170; }
+  const q3 = K.spawnPickup(G, 'slowmo'); if (q3){ q3.x = 50;  q3.y = 210; }
+  const q4 = K.spawnPickup(G, 'heavy');  if (q4){ q4.x = 370; q4.y = 50; }
+  G.shield = true;                       // PICK-02 refuses a shield pickup while held
+  G.ball.x = 210; G.ball.y = 160; G.ball.vx = 140; G.ball.vy = -260;
+  G.combo = 7; G.comboTimer = 1.6; G.score = 1240; G.bounces = 31;
+  K.fx.burst(G, 210, 200, '#ffd166', 24, 240);
+  K.fx.addText(G, 210, 120, '+35', '#ffd166');
+  K.fx.addText(G, 300, 250, 'close!', '#9fe8ff');
+  K.fx.addEdgeWarn(G, 'left', 260, 'rgba(255,93,115,0.9)', 'rgba(255,93,115,0)');
+  K.updateHud(G);
+  K.step(DT);
+  ok(G.hazards.length >= 4 && G.pickups.length >= 4, 'the scene holds saws, spike, drone and pickups');
+  ok(!fatal(), 'no runtime error after composing the scene', fatal());
+
+  /* ------------------------------------------------------------- teardown */
+  ok(!fatal(), 'no runtime error surfaced during the whole run', fatal());
+  render();
+}
+
+function render(){
+  $('log').innerHTML = log.map(l =>
+    '<div class="' + l.t + '">' + l.m.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])) + '</div>').join('');
+  const s = $('summary');
+  s.textContent = 'SUMMARY pass=' + pass + ' fail=' + fail + ' skip=' + skip;
+  s.className = fail === 0 ? 'ok' : 'bad';
+}
+
+main().catch(err => {
+  log.push({t:'f', m:'harness threw: ' + (err && err.stack || err)});
+  fail++;
+  render();
+});
+</script>
+</body>
+</html>

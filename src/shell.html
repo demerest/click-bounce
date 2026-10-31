@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="KEEP IT UP - a one-click jelly-bounce arcade game. Zero assets, zero dependencies, zero network requests.">
+<title>KEEP IT UP - one-click jelly bounce</title>
+<script>
+/* Installed before the game so that even a failure to load or parse the bundle
+ * leaves a visible message instead of a silent black screen (COMPAT-01). */
+window.addEventListener('error', function(e){
+  var el = document.getElementById('fatal');
+  if (!el) return;
+  var what = (e && (e.message || (e.target && (e.target.src || e.target.href)))) || 'unknown error';
+  el.textContent = 'Something broke: ' + what;
+  el.classList.remove('hidden');
+}, true);
+</script>
+<!--@css-->
+</head>
+<body>
+<canvas id="game" aria-label="Gameplay surface. Click or tap near the ball to bounce it away from your pointer."></canvas>
+
+<div id="hud">
+  <div id="scoreBox"><span id="score">0</span><div id="best">BEST 0</div></div>
+  <div id="comboBox"><div id="combo">&times;2</div><div id="comboBarWrap"><div id="comboBar"></div></div></div>
+  <div id="effects" aria-hidden="true"></div>
+</div>
+
+<div id="sysBtns">
+  <button id="pauseBtn" type="button" title="Pause (P)" aria-label="Pause">&#10074;&#10074;</button>
+  <button id="mute" type="button" title="Toggle sound (M)" aria-label="Toggle sound" aria-pressed="false">&#9834; ON</button>
+</div>
+
+<div id="menu" class="overlay" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+  <div class="panel">
+    <p class="eyebrow">ONE-CLICK ARCADE</p>
+    <h1 id="menuTitle">KEEP <em>IT&nbsp;UP</em></h1>
+    <p class="tag">The jelly ball knows only one word: <b>boing</b>. Keep it off the floor.</p>
+    <div class="demo" aria-hidden="true"><div class="demo-ball"></div><div class="demo-shadow"></div></div>
+    <ul class="how">
+      <li><b>Click / tap near the ball</b> &mdash; it gets pushed <b>away</b> from your finger, so you can steer it.</li>
+      <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing &mdash; and chain <b>combos</b> (max &times;10).</li>
+      <li>Missing breaks your combo, nothing more. The <b>floor</b> and <b>hazards</b> end the run.</li>
+      <li><b class="c-gold">&#9733; Star</b> +40 &middot; <b class="c-teal">teal ring</b> = shield that eats one hit.</li>
+      <li><b class="c-blue">blue bubble</b> = half gravity for 4s &middot; <b class="c-violet">violet loop</b> = stars fly to you for 6s.</li>
+      <li><b class="c-bronze">dark gold star</b> = +200, but you get <b>heavy</b> for 8s. Greed is a choice.</li>
+      <li>Watch the edges: <b class="c-hot">red flash</b> = saw incoming, <b class="c-hot">ceiling marker</b> = spike dropping where you <i>were</i>. After 60s a <b>drone</b> hunts you &mdash; it dies on walls.</li>
+      <li>Skim a saw for a <b>near-miss bonus</b>. <b>P</b> or <b>Esc</b> pauses.</li>
+    </ul>
+    <button id="startBtn" class="big" type="button">START BOUNCING</button>
+    <p class="hint">space / enter also works &middot; M mutes &middot; P pauses</p>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+  <div class="panel narrow">
+    <p class="eyebrow">TIME OUT</p>
+    <h1 id="pauseTitle">PAUSED<em>.</em></h1>
+    <p class="tag" id="pauseReason">The jelly ball is holding its breath.</p>
+    <button id="resumeBtn" class="big" type="button">RESUME</button>
+    <button id="pauseQuitBtn" class="ghost" type="button">QUIT TO MENU</button>
+    <p class="hint">P / Esc to resume</p>
+  </div>
+</div>
+
+<div id="over" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+  <div class="panel">
+    <p class="eyebrow">GRAVITY WINS</p>
+    <h1 id="overTitle">SPLAT<em>.</em></h1>
+    <div id="finalScore"><span id="finalScoreVal">0</span><span id="newBest">NEW BEST!</span></div>
+    <div class="stats">
+      <div class="stat"><b id="finalBounces">0</b><span>BOUNCES</span></div>
+      <div class="stat"><b id="finalCombo">0</b><span>MAX COMBO</span></div>
+      <div class="stat"><b id="finalTime">0s</b><span>TIME</span></div>
+      <div class="stat"><b id="finalBest">0</b><span>BEST</span></div>
+    </div>
+    <button id="retryBtn" class="big" type="button">BOUNCE AGAIN</button>
+    <p class="hint">space / enter to retry</p>
+  </div>
+</div>
+
+<div id="srStatus" class="sr-only" role="status" aria-live="polite"></div>
+<div id="fatal" class="hidden" role="alert"></div>
+
+<!--@js-->
+</body>
+</html>

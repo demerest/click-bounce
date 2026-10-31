@@ -1,0 +1,134 @@
+:root{
+  --panel:#141926; --line:#2a3140; --ink:#f5f7ff; --dim:#98a1b3;
+  --accent:#ffd166; --hot:#ff5d73; --cool:#4ecdc4;
+  --blue:#7fb2ff; --violet:#c39bff; --bronze:#c98b3c;
+  --display: Impact,'Arial Black','Franklin Gothic Bold',sans-serif;
+  --mono: ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%; margin:0; overflow:hidden; background:#0d1017;
+  font-family:system-ui,'Segoe UI',sans-serif; color:var(--ink); user-select:none;
+  -webkit-user-select:none; overscroll-behavior:none;}
+#game{position:fixed; inset:0; display:block; touch-action:none; cursor:crosshair;}
+
+/* ---------- accessibility helpers (A11Y-02) ---------- */
+.sr-only{position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+  overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;}
+:focus-visible{outline:3px solid var(--cool); outline-offset:3px;}
+button:focus:not(:focus-visible){outline:none;}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed; inset:0; pointer-events:none; z-index:5; font-family:var(--mono);}
+#scoreBox{position:absolute; top:12px; left:16px;}
+#score{display:inline-block; font-size:clamp(34px,6vw,52px); font-weight:900; line-height:1;
+  text-shadow:0 3px 0 rgba(0,0,0,.5);}
+#score.pop{animation:scorePop .18s ease-out;}
+@keyframes scorePop{0%{transform:scale(1.28); color:var(--accent);}100%{transform:scale(1);}}
+#best{color:var(--dim); font-size:12px; letter-spacing:.14em; margin-top:4px;}
+#comboBox{position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  text-align:center; opacity:0; transition:opacity .15s;}
+#combo{font-size:30px; font-weight:900; color:var(--accent); text-shadow:0 3px 0 rgba(0,0,0,.5);}
+#comboBarWrap{width:92px; height:5px; margin:5px auto 0; background:rgba(255,255,255,.15); border-radius:3px;}
+#comboBar{height:100%; width:100%; background:var(--accent); border-radius:3px;}
+
+/* active-effect pills: one per live mechanic (guide ground rule 3) */
+#effects{position:absolute; top:70px; left:50%; transform:translateX(-50%);
+  display:flex; gap:6px; flex-wrap:wrap; justify-content:center; max-width:70vw;}
+.pill{font-size:10px; letter-spacing:.12em; padding:3px 8px; border:2px solid currentColor;
+  background:rgba(10,13,20,.72); white-space:nowrap;}
+.pill i{font-style:normal; opacity:.75; margin-left:4px;}
+.pill-shield{color:var(--cool);} .pill-slowmo{color:var(--blue);}
+.pill-magnet{color:var(--violet);} .pill-heavy{color:var(--bronze);}
+
+/* ---------- system buttons ---------- */
+#sysBtns{position:fixed; top:14px; right:14px; z-index:20; display:flex; gap:8px;}
+#sysBtns button{font-family:var(--mono); font-size:12px; letter-spacing:.1em; color:var(--dim);
+  background:rgba(20,25,38,.8); border:2px solid var(--line); padding:7px 12px; cursor:pointer;}
+#sysBtns button:hover{color:var(--ink); border-color:var(--dim);}
+#mute.muted{color:#565e70; text-decoration:line-through;}
+#pauseBtn{line-height:1;}
+
+/* ---------- overlays ---------- */
+.overlay{position:fixed; inset:0; z-index:10; display:flex; align-items:center;
+  justify-content:center; background:rgba(7,9,14,.55); padding:12px;}
+.hidden{display:none;}
+.panel{background:var(--panel); border:3px solid var(--line); border-top:7px solid var(--accent);
+  box-shadow:12px 14px 0 rgba(0,0,0,.45); padding:26px 30px 28px;
+  width:min(92vw,460px); max-height:calc(100vh - 24px); overflow-y:auto;
+  animation:panelIn .35s cubic-bezier(.2,1.4,.4,1);}
+.panel.narrow{width:min(92vw,380px);}
+@keyframes panelIn{from{transform:translateY(26px); opacity:0;}to{transform:none; opacity:1;}}
+.eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.28em; color:var(--cool); margin:0 0 6px;}
+h1{font-family:var(--display); font-weight:400; font-size:clamp(40px,9vw,62px); line-height:.95;
+  letter-spacing:.02em; margin:0 0 8px; text-shadow:4px 4px 0 rgba(0,0,0,.45);}
+h1 em{font-style:normal; color:var(--accent); display:inline-block; transform:skew(-6deg);}
+.tag{color:var(--dim); font-size:14px; margin:0 0 16px;}
+.demo{display:flex; flex-direction:column; align-items:center; height:96px; justify-content:flex-end; margin:2px 0 10px;}
+.demo-ball{width:52px; height:52px; border-radius:50%;
+  background:radial-gradient(circle at 32% 30%, #ffd9d0, #ff6b6b 55%, #c9375c);
+  animation:demoBounce 1.5s cubic-bezier(.5,0,.5,1) infinite;}
+.demo-shadow{width:46px; height:9px; border-radius:50%; background:rgba(0,0,0,.5);
+  margin-top:6px; animation:demoShadow 1.5s cubic-bezier(.5,0,.5,1) infinite;}
+@keyframes demoBounce{
+  0%{transform:translateY(-64px) scale(1,1);} 46%{transform:translateY(0) scale(1,1);}
+  52%{transform:translateY(4px) scale(1.28,.66);} 58%{transform:translateY(-6px) scale(.92,1.08);}
+  100%{transform:translateY(-64px) scale(1,1);}}
+@keyframes demoShadow{0%,100%{transform:scaleX(.5); opacity:.35;} 52%{transform:scaleX(1.15); opacity:.7;}}
+ul.how{list-style:none; margin:0 0 18px; padding:0; font-size:13.5px; line-height:1.45; color:#c6ccda;}
+ul.how li{margin:0 0 9px; padding-left:20px; position:relative;}
+ul.how li::before{content:''; position:absolute; left:0; top:5px; width:10px; height:10px; border-radius:50%;}
+ul.how li:nth-child(1)::before{background:var(--hot);}
+ul.how li:nth-child(2)::before{background:var(--accent);}
+ul.how li:nth-child(3)::before{background:var(--cool);}
+ul.how li:nth-child(4)::before{background:var(--accent);}
+ul.how li:nth-child(5)::before{background:var(--blue);}
+ul.how li:nth-child(6)::before{background:var(--bronze);}
+ul.how li:nth-child(7)::before{background:var(--hot);}
+ul.how li:nth-child(8)::before{background:var(--violet);}
+ul.how b{color:var(--ink);}
+.c-gold{color:var(--accent);} .c-teal{color:var(--cool);} .c-blue{color:var(--blue);}
+.c-violet{color:var(--violet);} .c-bronze{color:var(--bronze);} .c-hot{color:var(--hot);}
+button.big{display:block; width:100%; font-family:var(--display); font-size:20px; letter-spacing:.08em;
+  background:var(--accent); color:#181206; border:0; padding:14px 0; cursor:pointer;
+  box-shadow:0 6px 0 #b98f2e; transition:transform .08s, box-shadow .08s;}
+button.big:hover{transform:translateY(-2px); box-shadow:0 8px 0 #b98f2e;}
+button.big:active{transform:translateY(3px); box-shadow:0 2px 0 #b98f2e;}
+button.ghost{display:block; width:100%; margin-top:10px; font-family:var(--mono); font-size:12px;
+  letter-spacing:.14em; background:transparent; color:var(--dim); border:2px solid var(--line);
+  padding:11px 0; cursor:pointer;}
+button.ghost:hover{color:var(--ink); border-color:var(--dim);}
+.hint{font-family:var(--mono); font-size:11px; color:#565e70; text-align:center; margin:14px 0 0;}
+#finalScore{font-family:var(--mono); font-size:56px; font-weight:900; color:var(--accent);
+  line-height:1; margin:6px 0 14px; text-shadow:0 3px 0 rgba(0,0,0,.5);}
+.stats{display:flex; gap:8px; margin-bottom:16px;}
+.stat{flex:1; background:#0f1420; border:2px solid var(--line); padding:9px 4px; text-align:center; min-width:0;}
+.stat b{display:block; font-family:var(--mono); font-size:19px;}
+.stat span{font-size:9px; letter-spacing:.12em; color:var(--dim);}
+#newBest{display:none; font-family:var(--mono); font-size:12px; letter-spacing:.2em; color:#181206;
+  background:var(--cool); padding:4px 10px; margin-left:10px; vertical-align:middle;
+  animation:panelIn .3s cubic-bezier(.2,1.6,.4,1);}
+#fatal{position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:40;
+  max-width:90vw; font-family:var(--mono); font-size:12px; color:#181206; background:var(--hot);
+  border:2px solid #7a1f2b; padding:10px 14px; white-space:pre-wrap;}
+
+/* ---------- A11Y-01: prefers-reduced-motion ---------- */
+@media (prefers-reduced-motion: reduce){
+  .demo-ball,.demo-shadow,.panel,#newBest,#score.pop{animation:none;}
+  button.big,button.big:hover,button.big:active{transition:none; transform:none;}
+  #comboBox{transition:none;}
+}
+
+/* ---------- short screens: keep START reachable without scrolling ---------- */
+@media (max-height: 720px){
+  .demo{display:none;}
+  .panel{padding:20px 24px 22px;}
+  ul.how{margin-bottom:14px;}
+  ul.how li{margin-bottom:6px;}
+}
+@media (max-height: 600px){
+  h1{font-size:clamp(32px,8vw,44px);}
+  ul.how{font-size:12px; line-height:1.35;}
+  .tag{font-size:12.5px; margin-bottom:10px;}
+  button.big{padding:11px 0; font-size:17px;}
+  .hint{margin-top:9px;}
+}

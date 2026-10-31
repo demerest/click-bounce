@@ -1,0 +1,2660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="KEEP IT UP - a one-click jelly-bounce arcade game. Zero assets, zero dependencies, zero network requests.">
+<title>KEEP IT UP - one-click jelly bounce</title>
+<script>
+/* Installed before the game so that even a failure to load or parse the bundle
+ * leaves a visible message instead of a silent black screen (COMPAT-01). */
+window.addEventListener('error', function(e){
+  var el = document.getElementById('fatal');
+  if (!el) return;
+  var what = (e && (e.message || (e.target && (e.target.src || e.target.href)))) || 'unknown error';
+  el.textContent = 'Something broke: ' + what;
+  el.classList.remove('hidden');
+}, true);
+</script>
+<style>
+:root{
+  --panel:#141926; --line:#2a3140; --ink:#f5f7ff; --dim:#98a1b3;
+  --accent:#ffd166; --hot:#ff5d73; --cool:#4ecdc4;
+  --blue:#7fb2ff; --violet:#c39bff; --bronze:#c98b3c;
+  --display: Impact,'Arial Black','Franklin Gothic Bold',sans-serif;
+  --mono: ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%; margin:0; overflow:hidden; background:#0d1017;
+  font-family:system-ui,'Segoe UI',sans-serif; color:var(--ink); user-select:none;
+  -webkit-user-select:none; overscroll-behavior:none;}
+#game{position:fixed; inset:0; display:block; touch-action:none; cursor:crosshair;}
+
+/* ---------- accessibility helpers (A11Y-02) ---------- */
+.sr-only{position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+  overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;}
+:focus-visible{outline:3px solid var(--cool); outline-offset:3px;}
+button:focus:not(:focus-visible){outline:none;}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed; inset:0; pointer-events:none; z-index:5; font-family:var(--mono);}
+#scoreBox{position:absolute; top:12px; left:16px;}
+#score{display:inline-block; font-size:clamp(34px,6vw,52px); font-weight:900; line-height:1;
+  text-shadow:0 3px 0 rgba(0,0,0,.5);}
+#score.pop{animation:scorePop .18s ease-out;}
+@keyframes scorePop{0%{transform:scale(1.28); color:var(--accent);}100%{transform:scale(1);}}
+#best{color:var(--dim); font-size:12px; letter-spacing:.14em; margin-top:4px;}
+#comboBox{position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  text-align:center; opacity:0; transition:opacity .15s;}
+#combo{font-size:30px; font-weight:900; color:var(--accent); text-shadow:0 3px 0 rgba(0,0,0,.5);}
+#comboBarWrap{width:92px; height:5px; margin:5px auto 0; background:rgba(255,255,255,.15); border-radius:3px;}
+#comboBar{height:100%; width:100%; background:var(--accent); border-radius:3px;}
+
+/* active-effect pills: one per live mechanic (guide ground rule 3) */
+#effects{position:absolute; top:70px; left:50%; transform:translateX(-50%);
+  display:flex; gap:6px; flex-wrap:wrap; justify-content:center; max-width:70vw;}
+.pill{font-size:10px; letter-spacing:.12em; padding:3px 8px; border:2px solid currentColor;
+  background:rgba(10,13,20,.72); white-space:nowrap;}
+.pill i{font-style:normal; opacity:.75; margin-left:4px;}
+.pill-shield{color:var(--cool);} .pill-slowmo{color:var(--blue);}
+.pill-magnet{color:var(--violet);} .pill-heavy{color:var(--bronze);}
+
+/* ---------- system buttons ---------- */
+#sysBtns{position:fixed; top:14px; right:14px; z-index:20; display:flex; gap:8px;}
+#sysBtns button{font-family:var(--mono); font-size:12px; letter-spacing:.1em; color:var(--dim);
+  background:rgba(20,25,38,.8); border:2px solid var(--line); padding:7px 12px; cursor:pointer;}
+#sysBtns button:hover{color:var(--ink); border-color:var(--dim);}
+#mute.muted{color:#565e70; text-decoration:line-through;}
+#pauseBtn{line-height:1;}
+
+/* ---------- overlays ---------- */
+.overlay{position:fixed; inset:0; z-index:10; display:flex; align-items:center;
+  justify-content:center; background:rgba(7,9,14,.55); padding:12px;}
+.hidden{display:none;}
+.panel{background:var(--panel); border:3px solid var(--line); border-top:7px solid var(--accent);
+  box-shadow:12px 14px 0 rgba(0,0,0,.45); padding:26px 30px 28px;
+  width:min(92vw,460px); max-height:calc(100vh - 24px); overflow-y:auto;
+  animation:panelIn .35s cubic-bezier(.2,1.4,.4,1);}
+.panel.narrow{width:min(92vw,380px);}
+@keyframes panelIn{from{transform:translateY(26px); opacity:0;}to{transform:none; opacity:1;}}
+.eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.28em; color:var(--cool); margin:0 0 6px;}
+h1{font-family:var(--display); font-weight:400; font-size:clamp(40px,9vw,62px); line-height:.95;
+  letter-spacing:.02em; margin:0 0 8px; text-shadow:4px 4px 0 rgba(0,0,0,.45);}
+h1 em{font-style:normal; color:var(--accent); display:inline-block; transform:skew(-6deg);}
+.tag{color:var(--dim); font-size:14px; margin:0 0 16px;}
+.demo{display:flex; flex-direction:column; align-items:center; height:96px; justify-content:flex-end; margin:2px 0 10px;}
+.demo-ball{width:52px; height:52px; border-radius:50%;
+  background:radial-gradient(circle at 32% 30%, #ffd9d0, #ff6b6b 55%, #c9375c);
+  animation:demoBounce 1.5s cubic-bezier(.5,0,.5,1) infinite;}
+.demo-shadow{width:46px; height:9px; border-radius:50%; background:rgba(0,0,0,.5);
+  margin-top:6px; animation:demoShadow 1.5s cubic-bezier(.5,0,.5,1) infinite;}
+@keyframes demoBounce{
+  0%{transform:translateY(-64px) scale(1,1);} 46%{transform:translateY(0) scale(1,1);}
+  52%{transform:translateY(4px) scale(1.28,.66);} 58%{transform:translateY(-6px) scale(.92,1.08);}
+  100%{transform:translateY(-64px) scale(1,1);}}
+@keyframes demoShadow{0%,100%{transform:scaleX(.5); opacity:.35;} 52%{transform:scaleX(1.15); opacity:.7;}}
+ul.how{list-style:none; margin:0 0 18px; padding:0; font-size:13.5px; line-height:1.45; color:#c6ccda;}
+ul.how li{margin:0 0 9px; padding-left:20px; position:relative;}
+ul.how li::before{content:''; position:absolute; left:0; top:5px; width:10px; height:10px; border-radius:50%;}
+ul.how li:nth-child(1)::before{background:var(--hot);}
+ul.how li:nth-child(2)::before{background:var(--accent);}
+ul.how li:nth-child(3)::before{background:var(--cool);}
+ul.how li:nth-child(4)::before{background:var(--accent);}
+ul.how li:nth-child(5)::before{background:var(--blue);}
+ul.how li:nth-child(6)::before{background:var(--bronze);}
+ul.how li:nth-child(7)::before{background:var(--hot);}
+ul.how li:nth-child(8)::before{background:var(--violet);}
+ul.how b{color:var(--ink);}
+.c-gold{color:var(--accent);} .c-teal{color:var(--cool);} .c-blue{color:var(--blue);}
+.c-violet{color:var(--violet);} .c-bronze{color:var(--bronze);} .c-hot{color:var(--hot);}
+button.big{display:block; width:100%; font-family:var(--display); font-size:20px; letter-spacing:.08em;
+  background:var(--accent); color:#181206; border:0; padding:14px 0; cursor:pointer;
+  box-shadow:0 6px 0 #b98f2e; transition:transform .08s, box-shadow .08s;}
+button.big:hover{transform:translateY(-2px); box-shadow:0 8px 0 #b98f2e;}
+button.big:active{transform:translateY(3px); box-shadow:0 2px 0 #b98f2e;}
+button.ghost{display:block; width:100%; margin-top:10px; font-family:var(--mono); font-size:12px;
+  letter-spacing:.14em; background:transparent; color:var(--dim); border:2px solid var(--line);
+  padding:11px 0; cursor:pointer;}
+button.ghost:hover{color:var(--ink); border-color:var(--dim);}
+.hint{font-family:var(--mono); font-size:11px; color:#565e70; text-align:center; margin:14px 0 0;}
+#finalScore{font-family:var(--mono); font-size:56px; font-weight:900; color:var(--accent);
+  line-height:1; margin:6px 0 14px; text-shadow:0 3px 0 rgba(0,0,0,.5);}
+.stats{display:flex; gap:8px; margin-bottom:16px;}
+.stat{flex:1; background:#0f1420; border:2px solid var(--line); padding:9px 4px; text-align:center; min-width:0;}
+.stat b{display:block; font-family:var(--mono); font-size:19px;}
+.stat span{font-size:9px; letter-spacing:.12em; color:var(--dim);}
+#newBest{display:none; font-family:var(--mono); font-size:12px; letter-spacing:.2em; color:#181206;
+  background:var(--cool); padding:4px 10px; margin-left:10px; vertical-align:middle;
+  animation:panelIn .3s cubic-bezier(.2,1.6,.4,1);}
+#fatal{position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:40;
+  max-width:90vw; font-family:var(--mono); font-size:12px; color:#181206; background:var(--hot);
+  border:2px solid #7a1f2b; padding:10px 14px; white-space:pre-wrap;}
+
+/* ---------- A11Y-01: prefers-reduced-motion ---------- */
+@media (prefers-reduced-motion: reduce){
+  .demo-ball,.demo-shadow,.panel,#newBest,#score.pop{animation:none;}
+  button.big,button.big:hover,button.big:active{transition:none; transform:none;}
+  #comboBox{transition:none;}
+}
+
+/* ---------- short screens: keep START reachable without scrolling ---------- */
+@media (max-height: 720px){
+  .demo{display:none;}
+  .panel{padding:20px 24px 22px;}
+  ul.how{margin-bottom:14px;}
+  ul.how li{margin-bottom:6px;}
+}
+@media (max-height: 600px){
+  h1{font-size:clamp(32px,8vw,44px);}
+  ul.how{font-size:12px; line-height:1.35;}
+  .tag{font-size:12.5px; margin-bottom:10px;}
+  button.big{padding:11px 0; font-size:17px;}
+  .hint{margin-top:9px;}
+}
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Gameplay surface. Click or tap near the ball to bounce it away from your pointer."></canvas>
+
+<div id="hud">
+  <div id="scoreBox"><span id="score">0</span><div id="best">BEST 0</div></div>
+  <div id="comboBox"><div id="combo">&times;2</div><div id="comboBarWrap"><div id="comboBar"></div></div></div>
+  <div id="effects" aria-hidden="true"></div>
+</div>
+
+<div id="sysBtns">
+  <button id="pauseBtn" type="button" title="Pause (P)" aria-label="Pause">&#10074;&#10074;</button>
+  <button id="mute" type="button" title="Toggle sound (M)" aria-label="Toggle sound" aria-pressed="false">&#9834; ON</button>
+</div>
+
+<div id="menu" class="overlay" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+  <div class="panel">
+    <p class="eyebrow">ONE-CLICK ARCADE</p>
+    <h1 id="menuTitle">KEEP <em>IT&nbsp;UP</em></h1>
+    <p class="tag">The jelly ball knows only one word: <b>boing</b>. Keep it off the floor.</p>
+    <div class="demo" aria-hidden="true"><div class="demo-ball"></div><div class="demo-shadow"></div></div>
+    <ul class="how">
+      <li><b>Click / tap near the ball</b> &mdash; it gets pushed <b>away</b> from your finger, so you can steer it.</li>
+      <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing &mdash; and chain <b>combos</b> (max &times;10).</li>
+      <li>Missing breaks your combo, nothing more. The <b>floor</b> and <b>hazards</b> end the run.</li>
+      <li><b class="c-gold">&#9733; Star</b> +40 &middot; <b class="c-teal">teal ring</b> = shield that eats one hit.</li>
+      <li><b class="c-blue">blue bubble</b> = half gravity for 4s &middot; <b class="c-violet">violet loop</b> = stars fly to you for 6s.</li>
+      <li><b class="c-bronze">dark gold star</b> = +200, but you get <b>heavy</b> for 8s. Greed is a choice.</li>
+      <li>Watch the edges: <b class="c-hot">red flash</b> = saw incoming, <b class="c-hot">ceiling marker</b> = spike dropping where you <i>were</i>. After 60s a <b>drone</b> hunts you &mdash; it dies on walls.</li>
+      <li>Skim a saw for a <b>near-miss bonus</b>. <b>P</b> or <b>Esc</b> pauses.</li>
+    </ul>
+    <button id="startBtn" class="big" type="button">START BOUNCING</button>
+    <p class="hint">space / enter also works &middot; M mutes &middot; P pauses</p>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+  <div class="panel narrow">
+    <p class="eyebrow">TIME OUT</p>
+    <h1 id="pauseTitle">PAUSED<em>.</em></h1>
+    <p class="tag" id="pauseReason">The jelly ball is holding its breath.</p>
+    <button id="resumeBtn" class="big" type="button">RESUME</button>
+    <button id="pauseQuitBtn" class="ghost" type="button">QUIT TO MENU</button>
+    <p class="hint">P / Esc to resume</p>
+  </div>
+</div>
+
+<div id="over" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+  <div class="panel">
+    <p class="eyebrow">GRAVITY WINS</p>
+    <h1 id="overTitle">SPLAT<em>.</em></h1>
+    <div id="finalScore"><span id="finalScoreVal">0</span><span id="newBest">NEW BEST!</span></div>
+    <div class="stats">
+      <div class="stat"><b id="finalBounces">0</b><span>BOUNCES</span></div>
+      <div class="stat"><b id="finalCombo">0</b><span>MAX COMBO</span></div>
+      <div class="stat"><b id="finalTime">0s</b><span>TIME</span></div>
+      <div class="stat"><b id="finalBest">0</b><span>BEST</span></div>
+    </div>
+    <button id="retryBtn" class="big" type="button">BOUNCE AGAIN</button>
+    <p class="hint">space / enter to retry</p>
+  </div>
+</div>
+
+<div id="srStatus" class="sr-only" role="status" aria-live="polite"></div>
+<div id="fatal" class="hidden" role="alert"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ===================== config.js ===================== */
+
+/* config.js — CFG is the single source of truth for every tunable number.
+ * Ground rule 1 (IMPLEMENTATION_GUIDE §1): no magic numbers in logic.
+ * Ground rule 4 / pillar 4: every ramp has its cap declared right next to it.
+ * Requirement IDs in comments refer to REQUIREMENTS.md.
+ */
+
+const CFG = {
+  /* ---------------- world & rendering ---------------- */
+  ballRadius: 26,
+  dprCap: 2,                    // PERF-02
+  ceilingPad: 2.5,              // ball.y floor at -r * ceilingPad
+  ceilingRest: 0.35,
+  fpsFloorDt: 1 / 30,           // PHYS-01: dt clamp lives in the loop only
+
+  /* ---------------- gravity & difficulty pacing (DIFF-01..05) ---------------- */
+  gravityBase: 950,             // DIFF-01
+  gravityRamp: 9,               // px/s^2 per second
+  gravityMax: 1650,             // DIFF-01 cap
+  gravityHardCap: 1900,         // DIFF-05: absolute ceiling AFTER pickup multipliers
+
+  /* ---------------- bounce & input (CORE-02..10) ---------------- */
+  bouncePower: 880,
+  bounceChargeTime: 0.45,       // CORE-05: 0 -> full power over this many seconds
+  bounceMinFactor: 0.55,        // CORE-05: spam-tap floor
+  bounceMinUpward: 0.55,        // CORE-03: guaranteed upward component (x power)
+  bounceMinNy: -0.35,           // push direction is tilted up to at least this
+  bounceLateralMul: 0.95,
+  hitRadiusMul: 2.3,            // CORE-02
+  bounceCooldown: 0.1,          // CORE-08 anti-spam (also covers multi-touch)
+  wallRest: 0.75,               // CORE-06
+  wallWobble: 0.2,
+  spinFromPush: 7,              // CORE-09
+  spinFromOffsetGain: 0.65,     // CORE-09: glancing (off-centre) hits spin harder
+  spinDecay: 1.2,
+  bounceWobbleBase: 0.38,
+  bounceWobbleAdd: 0.22,
+  bounceRingRMul: 0.6,
+  bounceRingYMul: 0.5,
+  bounceRingVr: 260,
+  bounceRingLife: 0.3,
+  dotKickOnBounce: 180,
+
+  /* ---------------- hit-stop & death drama (Phase 2) ---------------- */
+  hitStopTime: 0.05,            // ~3 frames at 60fps: freeze physics, keep wobble
+  deathSlowmo: 0.25,            // real seconds of slow-motion before the panel
+  deathTimeScale: 0.25,
+  deathTimeScaleRate: 18,       // fast enough to reach the slow scale inside the 250ms beat
+  overPanelDelay: 0.3,          // after slow-mo ends, before the panel appears
+  restartLock: 0.7,             // UI-04: no accidental restart
+
+  /* ---------------- combo & scoring (SCORE-01..05) ---------------- */
+  comboWindow: 2.2,
+  comboCap: 10,                 // SCORE-03
+  bouncePoints: 5,              // SCORE-01
+  starPoints: 40,               // PICK-01
+  heavyPoints: 200,             // Phase 3 heavy star
+  nearMissPoints: 15,           // Phase 2 near-miss
+  nearMissMargin: 20,           // px of surface gap that still counts as a skim
+  nearMissTextGap: 16,
+  scoreTextDy: 10,              // floating text anchors (SCORE-05)
+  missTextDy: 12,
+  saveTextDy: 20,
+  nearMissTextDy: 26,
+
+  /* ---------------- saw hazard (HAZ-01..05, DIFF-02..04) ---------------- */
+  hazardDelay: 9,               // DIFF-02 grace period
+  hazardIntervalStart: 3.4,     // DIFF-03
+  hazardIntervalMin: 1.15,      // DIFF-03 floor
+  hazardIntervalRamp: 0.03,     // seconds shaved per second of elapsed time
+  hazardCap: 5,                 // HAZ-04
+  sawSpeedMin: 70,
+  sawSpeedMax: 130,
+  sawSpeedRamp: 1.6,            // DIFF-04
+  sawSpeedRampCap: 150,         // DIFF-04 cap
+  sawRadiusMin: 15,
+  sawRadiusMax: 24,
+  sawTeeth: 9,
+  sawSpinMin: 2,
+  sawSpinMax: 4,
+  sawBobRate: 2.2,
+  sawBobAmpMin: 6,
+  sawBobAmpMax: 18,
+  sawExitPad: 80,
+  hazardKillPad: 0.9,           // collision radius = h.r + ball.r * pad
+
+  /* ---------------- spawn fairness (pillar 3, HAZ-02, PICK-03) ---------------- */
+  spawnMargin: 130,             // min distance from the ball, both axes rules
+  spawnRerolls: 8,              // HAZ-02 max attempts
+  spawnOffscreen: 60,           // hazards enter from off-screen (guide §6)
+  sawSpawnYMinFrac: 0.12,
+  sawSpawnYMaxFrac: 0.7,
+  hazardWarnTime: 0.45,         // saw waits off-screen while its edge flash shows
+  hazardMinVisible: 1.5,        // pillar 3: speed capped so travel time >= this
+  edgeWarnTime: 0.9,
+  edgeWarnWidth: 130,
+  edgeWarnCap: 4,
+  edgeWarnPulseRate: 22,
+  edgeWarnArrowLen: 26,
+
+  /* ---------------- falling spike (HAZ-06, Phase 3) ---------------- */
+  spikeGate: 16,                // elapsed seconds before spikes may spawn
+  spikeFirstAfterGate: 1.5,
+  spikeIntervalStart: 7.5,
+  spikeIntervalMin: 3.6,
+  spikeIntervalRamp: 0.05,
+  spikeCap: 2,
+  spikeWarnTime: 1.0,           // ceiling telegraph (pillar 3)
+  spikeGravity: 900,
+  spikeSpeedMax: 780,           // pillar 4 cap
+  spikeR: 15,
+  spikeEdgePad: 44,
+  spikeExitPad: 90,
+  spikeMarkDrop: 34,            // ceiling telegraph geometry
+  spikeMarkTop: 6,
+  spikeMarkWidth: 0.8,
+  spikePulseRate: 18,
+
+  /* ---------------- seeker drone (HAZ-06, Phase 3, late game) ---------------- */
+  seekerGate: 60,               // "after 60 s" per ROADMAP Phase 3
+  seekerFirstAfterGate: 4,
+  seekerIntervalMin: 14,
+  seekerIntervalMax: 20,
+  seekerCap: 1,
+  seekerWarnTime: 1.0,          // edge telegraph before it may connect (pillar 3)
+  seekerSpeed: 132,             // slow homing
+  seekerTurnRate: 1.5,          // radians/second cap (pillar 4)
+  seekerR: 15,
+  seekerLife: 12,               // pillar 4: it cannot chase forever
+  seekerBounds: 200,            // off-screen slack before a drone is culled
+  seekerRotRate: 6,
+  seekerWallShake: 6,
+  seekerCrashBurst: 14,
+  seekerCrashSpeed: 200,
+  seekerCrashRingRMul: 0.5,
+  seekerCrashRingVr: 240,
+  seekerCrashRingLife: 0.3,
+  seekerBlinkLife: 2,           // drone flashes during its final seconds
+  seekerBlinkRate: 20,
+
+  /* ---------------- pickups (PICK-01..05) ---------------- */
+  pickupCap: 4,                 // PICK-04
+  pickupRetry: 0.6,             // re-roll delay when the cap is full
+  pickupXPad: 50,
+  pickupYMin: 70,
+  pickupYMaxFrac: 0.55,
+  pickupContactPad: 4,
+  pickupDriftRate: 2,
+  pickupDriftAmp: 8,
+  pickupBlinkRate: 9,
+  pickupLife: 8,                // utility pickups; stars use starLife (PICK-01)
+  pickupBlink: 1.6,
+
+  starFirst: 3,
+  starIntervalMin: 3.5,         // PICK-01
+  starIntervalMax: 5.5,
+  starLife: 7,                  // PICK-01
+  starBlink: 1.6,               // PICK-01 warning window
+  starR: 13,
+  starSpin: 0.8,
+  starPulse: 6,
+  collectBurst: 16,
+  collectBurstSpeed: 220,
+  collectRingRMul: 0.6,
+  collectRingVr: 190,
+  collectRingLife: 0.28,
+
+  shieldFirst: 10,
+  shieldIntervalMin: 12,        // PICK-02
+  shieldIntervalMax: 18,
+  shieldR: 15,
+  shieldPopVy: 150,             // PICK-05 little upward thank-you
+  shieldPopShake: 7,
+  shieldPopBurst: 26,
+  shieldPopBurstSpeed: 260,
+  shieldPopRingR: 10,
+  shieldPopRingVr: 340,
+  shieldPopRingLife: 0.4,
+  pickupTextDy: 22,
+
+  slowmoFirst: 26,
+  slowmoIntervalMin: 22,
+  slowmoIntervalMax: 34,
+  slowmoTime: 4,
+  slowmoStackCap: 6,            // pillar 4
+  slowmoGravityMul: 0.5,
+  slowmoR: 15,
+
+  magnetFirst: 20,
+  magnetIntervalMin: 16,
+  magnetIntervalMax: 24,
+  magnetTime: 6,
+  magnetStackCap: 9,            // pillar 4
+  magnetRadius: 150,
+  magnetSpeed: 210,
+  magnetR: 14,
+
+  heavyFirst: 30,
+  heavyGate: 25,                // elapsed seconds before heavy stars may spawn
+  heavyIntervalMin: 18,
+  heavyIntervalMax: 28,
+  heavyTime: 8,
+  heavyStackCap: 12,            // pillar 4
+  heavyGravityMul: 1.15,
+  heavyR: 15,
+
+  /* ---------------- fx budget (guide §6) ---------------- */
+  particleCap: 120,
+  ringCap: 6,
+  textCap: 8,
+  particleGravity: 600,
+  particleLifeMin: 0.35,
+  particleLifeMax: 0.8,
+  particleSizeMin: 2,
+  particleSizeMax: 5,
+  textLife: 0.9,
+  textRise: 34,
+  textFadeIn: 0.4,
+  textFontPx: 15,
+  ringWidth: 3,
+  shakeDecay: 6,
+  shakeMin: 0.3,
+  dotKickDecay: 3,
+  missRingR: 4,
+  missRingVr: 140,
+  missRingLife: 0.35,
+  deathShake: 12,
+  deathParticles: 40,
+  deathParticles2: 18,
+  deathBurstSpeed: 380,
+  deathBurst2Speed: 260,
+  deathRingVr: 420,
+  deathRingLife: 0.5,
+  floorLineH: 3,
+  shieldAuraPad: 9,
+  shieldAuraDash: 10,
+  shieldAuraGap: 8,
+  shieldAuraWidth: 2.5,
+  shieldAuraSpin: 1.5,
+
+  /* ---------------- background & ball look ---------------- */
+  bgDots: 46,
+  bgDotRMin: 1, bgDotRMax: 2.6,
+  bgDotSpeedMin: 10, bgDotSpeedMax: 32,
+  bgDotAlphaMin: 0.08, bgDotAlphaMax: 0.3,
+  bgDotKickMin: 0.4, bgDotKickMax: 1,
+  bgHueBase: 222,
+  bgHueRate: 1.7,
+  bgHueSpread: 46,
+  bgDotHueOffset: 60,
+  dangerFrac: 0.3,
+  dangerHeight: 130,
+  dangerAlphaBase: 0.12,
+  dangerAlphaAdd: 0.3,
+
+  stretchDivisor: 1500,
+  stretchMax: 0.36,             // PHYS-02 cap
+  scaleMin: 0.55,
+  wobbleRate: 19,               // PHYS-03
+  wobbleDecay: 5.2,
+  dispLerp: 10,                 // PHYS-04
+  dispSpeedMin: 60,
+  trailLen: 12,
+  trailSpeedMin: 350,
+  trailSpeedRange: 500,
+  trailAlpha: 0.14,
+  flecks: 3,                    // CORE-09: surface flecks make spin legible
+  blinkMin: 2.4, blinkMax: 5,   // PHYS-05
+  blinkTime: 0.13,
+  pupilXGain: 0.01, pupilXMax: 2.5,
+  pupilYGain: 0.01, pupilYMax: 2,
+
+  /* ---------------- attract mode (UI-02) ---------------- */
+  autoTriggerFrac: 0.6,
+  autoPushGain: 0.004,
+  autoPushMax: 0.7,
+  autoPushOffset: 90,
+  autoFloorPowerMul: 0.9,
+  autoFloorWobble: 0.45,
+
+  /* ---------------- audio (AUD-01..06) ---------------- */
+  masterGain: 0.18,             // AUD-04: must stay <= 0.2
+  rootFreq: 240,
+  pentatonic: [0, 3, 5, 7, 10, 12, 15, 17, 19, 22],   // AUD-03
+  toneAttack: 0.008,
+  toneTail: 0.05,
+  noiseCutoff: 900,
+  throttleWall: 0.06,           // AUD-06 throttled sounds
+  throttleNearMiss: 0.3,
+  throttleWarn: 0.25,
+  throttleSeeker: 0.4,
+};
+
+const KEYS = {
+  best: 'keepup.best',
+  mute: 'keepup.muted',
+};
+
+
+/* ===================== math.js ===================== */
+
+/* math.js — tiny pure helpers. No state, no DOM. */
+
+const TAU = Math.PI * 2;
+
+function clamp(v, a, b){ return v < a ? a : v > b ? b : v; }
+
+function rand(a, b){ return a + Math.random() * (b - a); }
+
+/* shortest-arc angle interpolation (used for stretch orientation, PHYS-04) */
+function lerpAngle(a, b, t){
+  let d = (b - a) % TAU;
+  if (d > Math.PI) d -= TAU;
+  if (d < -Math.PI) d += TAU;
+  return a + d * t;
+}
+
+/* rotate `a` toward `b` by at most `maxStep` radians — capped turn rate for the seeker */
+function turnToward(a, b, maxStep){
+  let d = (b - a) % TAU;
+  if (d > Math.PI) d -= TAU;
+  if (d < -Math.PI) d += TAU;
+  return a + clamp(d, -maxStep, maxStep);
+}
+
+/* frame-rate independent exponential decay */
+function decay(v, rate, dt){ return v * Math.exp(-rate * dt); }
+
+/* move v toward target by a 0..1 fraction */
+function approach(v, target, t){ return v + (target - v) * clamp(t, 0, 1); }
+
+
+/* ===================== storage.js ===================== */
+
+/* storage.js — localStorage, fully guarded (SCORE-06, COMPAT-01, DATA-01).
+ * Private browsing / disabled storage must degrade silently, never throw.
+ */
+
+const LS = {
+  available: false,
+
+  probe(){
+    try {
+      const k = '__keepup_probe';
+      window.localStorage.setItem(k, '1');
+      window.localStorage.removeItem(k);
+      this.available = true;
+    } catch (e){
+      this.available = false;
+    }
+    return this.available;
+  },
+
+  get(k){
+    try { return window.localStorage.getItem(k); } catch (e){ return null; }
+  },
+
+  set(k, v){
+    try { window.localStorage.setItem(k, v); return true; } catch (e){ return false; }
+  },
+
+  num(k, dflt){
+    const n = parseFloat(this.get(k));
+    return isFinite(n) ? n : dflt;
+  },
+
+  bool(k, dflt){
+    const v = this.get(k);
+    return v === null ? dflt : v === '1';
+  },
+};
+
+
+/* ===================== dom.js ===================== */
+
+/* dom.js — every element lookup happens once, here (UI-05: menus/HUD in DOM).
+ * The bundle places this at the end of <body>; module builds are deferred.
+ * Either way the DOM is ready when this evaluates.
+ */
+
+function byId(id){ return document.getElementById(id); }
+
+const DOM = {
+  canvas: byId('game'),
+  hud: byId('hud'),
+  score: byId('score'),
+  best: byId('best'),
+  comboBox: byId('comboBox'),
+  combo: byId('combo'),
+  comboBar: byId('comboBar'),
+  effects: byId('effects'),
+  pauseBtn: byId('pauseBtn'),
+  muteBtn: byId('mute'),
+  menu: byId('menu'),
+  pauseEl: byId('pause'),
+  over: byId('over'),
+  pauseReason: byId('pauseReason'),
+  startBtn: byId('startBtn'),
+  resumeBtn: byId('resumeBtn'),
+  pauseQuitBtn: byId('pauseQuitBtn'),
+  retryBtn: byId('retryBtn'),
+  finalScoreVal: byId('finalScoreVal'),
+  newBest: byId('newBest'),
+  finalBounces: byId('finalBounces'),
+  finalCombo: byId('finalCombo'),
+  finalTime: byId('finalTime'),
+  finalBest: byId('finalBest'),
+  srStatus: byId('srStatus'),
+  fatal: byId('fatal'),
+};
+
+/* Last-resort surface for a runtime failure. COMPAT-01 asks for graceful
+ * degradation; a silent black screen is not graceful. Also our test seam. */
+function showFatal(msg){
+  const el = DOM.fatal;
+  if (!el) return;
+  el.textContent = 'Something broke: ' + msg;
+  el.classList.remove('hidden');
+}
+
+function announce(msg){
+  if (DOM.srStatus) DOM.srStatus.textContent = msg;
+}
+
+
+/* ===================== audio.js ===================== */
+
+/* audio.js — every sound is synthesized (AUD-01). No files, ever.
+ * AUD-02: the context is only created/resumed from ensure(), which input.js
+ * calls from inside a real user gesture — never at load time.
+ * AUD-04: master gain <= 0.2, every voice uses a short envelope.
+ * AUD-06: one distinct, throttled sound per discrete event.
+ */
+
+
+const Snd = {
+  ctx: null,
+  master: null,
+  noiseBuf: null,
+  muted: false,
+  available: true,
+  lastAt: {},
+
+  /* called from a user gesture only */
+  ensure(){
+    if (!this.available) return false;
+    if (!this.ctx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC){ this.available = false; return false; }   // COMPAT-01
+      try {
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = this.muted ? 0 : CFG.masterGain;
+        this.master.connect(this.ctx.destination);
+        const len = Math.max(1, Math.floor(this.ctx.sampleRate * 0.5));
+        const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        this.noiseBuf = buf;
+      } catch (e){
+        this.ctx = null; this.master = null; this.available = false; return false;
+      }
+    }
+    if (this.ctx.state === 'suspended'){
+      const p = this.ctx.resume();
+      if (p && typeof p.catch === 'function') p.catch(function(){});
+    }
+    return true;
+  },
+
+  setMuted(m){
+    this.muted = !!m;
+    if (this.master) this.master.gain.value = this.muted ? 0 : CFG.masterGain;
+  },
+
+  /* rate limiter so a burst of identical events cannot machine-gun (AUD-06) */
+  gate(key, gap){
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const prev = this.lastAt[key];
+    if (prev !== undefined && now - prev < gap * 1000) return false;
+    this.lastAt[key] = now;
+    return true;
+  },
+
+  tone(f0, f1, dur, type, vol, delay){
+    if (!this.ctx || this.muted) return;
+    const t0 = this.ctx.currentTime + (delay || 0);
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(Math.max(1, f0), t0);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t0 + CFG.toneAttack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t0); o.stop(t0 + dur + CFG.toneTail);
+  },
+
+  noise(dur, vol, delay){
+    if (!this.ctx || this.muted || !this.noiseBuf) return;
+    const t0 = this.ctx.currentTime + (delay || 0);
+    const s = this.ctx.createBufferSource(); s.buffer = this.noiseBuf;
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = CFG.noiseCutoff;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(Math.max(0.0002, vol), t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    s.connect(f); f.connect(g); g.connect(this.master);
+    s.start(t0); s.stop(t0 + dur + CFG.toneTail);
+  },
+
+  /* detuned pair = the "pad" voice used by the slow-mo bubble */
+  pad(f, dur, vol, detune){
+    if (!this.ctx || this.muted) return;
+    const t0 = this.ctx.currentTime;
+    for (let i = 0; i < 2; i++){
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f, t0);
+      o.detune.setValueAtTime(i ? detune : -detune, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol * 0.5, t0 + dur * 0.25);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(this.master);
+      o.start(t0); o.stop(t0 + dur + CFG.toneTail);
+    }
+  },
+
+  /* ---- events ---- */
+  bounce(combo){                                   // AUD-03 pentatonic ladder
+    const steps = CFG.pentatonic;
+    const semi = steps[Math.max(0, Math.min(combo - 1, steps.length - 1))];
+    const f = CFG.rootFreq * Math.pow(2, semi / 12);
+    this.tone(f, f, 0.1, 'triangle', 0.45);
+    this.tone(f * 2, f * 2, 0.06, 'sine', 0.14);
+  },
+  miss(){ this.tone(130, 80, 0.07, 'square', 0.2); },
+  wall(){ if (this.gate('wall', CFG.throttleWall)) this.tone(170, 150, 0.05, 'sine', 0.12); },
+  star(){ this.tone(784, 784, 0.08, 'sine', 0.35); this.tone(1046, 1046, 0.1, 'sine', 0.35, 0.08); },
+  shieldPickup(){ this.tone(392, 587, 0.16, 'triangle', 0.4); },
+  shieldPop(){ this.tone(500, 110, 0.22, 'sawtooth', 0.4); this.noise(0.18, 0.3); },
+  die(){ this.tone(260, 55, 0.55, 'sawtooth', 0.5); this.tone(130, 40, 0.6, 'square', 0.25, 0.05); this.noise(0.45, 0.35); },
+  start(){ this.tone(330, 660, 0.18, 'triangle', 0.35); },
+  pause(){ this.tone(440, 330, 0.09, 'sine', 0.22); },
+  resume(){ this.tone(330, 440, 0.09, 'sine', 0.22); },
+
+  nearMiss(){ if (this.gate('near', CFG.throttleNearMiss)) this.tone(880, 1320, 0.07, 'sine', 0.2); },
+
+  spikeWarn(){ if (this.gate('warn', CFG.throttleWarn)) this.tone(620, 620, 0.06, 'square', 0.16); },
+  spikeDrop(){ this.tone(300, 90, 0.2, 'sawtooth', 0.26); this.noise(0.1, 0.14); },
+
+  seekerWarn(){ if (this.gate('seek', CFG.throttleSeeker)) this.tone(240, 300, 0.18, 'square', 0.16); },
+  seekerDie(){ this.tone(700, 160, 0.18, 'square', 0.24); this.noise(0.14, 0.2); },
+
+  slowmo(){ this.pad(196, 1.1, 0.3, 14); this.tone(587, 587, 0.14, 'sine', 0.16, 0.02); },
+  slowmoEnd(){ this.tone(392, 523, 0.12, 'sine', 0.14); },
+  magnet(){ this.tone(523, 784, 0.14, 'triangle', 0.3); this.tone(659, 988, 0.12, 'sine', 0.16, 0.06); },
+  heavy(){ this.tone(180, 120, 0.24, 'sawtooth', 0.3); this.noise(0.16, 0.18); this.tone(1046, 1046, 0.08, 'sine', 0.2, 0.02); },
+};
+
+
+/* ===================== state.js ===================== */
+
+/* state.js — the one mutable game object, handed to every system.
+ * ROADMAP §3: "Pass state down; avoid a second global mutable mess."
+ */
+
+
+function makeBall(){
+  return {
+    x: 0, y: 0, vx: 0, vy: 0,
+    r: CFG.ballRadius,
+    spin: 0,        // angular velocity (visual, CORE-09)
+    ang: 0,         // integrated angle, drawn as surface flecks
+    dispAng: -Math.PI / 2,   // stretch orientation (PHYS-04)
+    wAmp: 0, wPhase: 0,      // damped jelly wobble (PHYS-03)
+    blinkT: 2.5, blink: 0,   // PHYS-05
+    dead: false,
+    trail: [],
+  };
+}
+
+function createGame(){
+  const g = {
+    /* lifecycle: menu | play | paused | dying | over (UI-01, UI-06) */
+    state: 'menu',
+    pausedBy: null,        // 'user' | 'tab'
+    reducedMotion: false,  // A11Y-01
+
+    /* view */
+    W: 0, H: 0, dpr: 1,
+
+    /* clocks */
+    totalT: 0,        // never reset: charge + animation reference
+    elapsed: 0,       // run time; drives every difficulty ramp
+    lastBounceAt: -9,
+    timeScale: 1,     // death slow-motion
+    deathT: 0,
+    overAt: 0,        // UI-04 restart lock reference
+    panelShown: false,
+    hitStop: 0,       // Phase 2 hit-stop
+
+    /* scoring (SCORE-*) */
+    score: 0, best: 0, newBest: false,
+    combo: 0, comboTimer: 0, maxCombo: 0, bounces: 0,
+
+    /* active effects */
+    shield: false,    // PICK-02
+    slowmoT: 0,       // Phase 3
+    magnetT: 0,       // Phase 3
+    heavyT: 0,        // Phase 3
+
+    /* entities */
+    ball: makeBall(),
+    hazards: [], pickups: [],
+    particles: [], rings: [], texts: [], edgeWarns: [],
+    bgDots: [],
+
+    /* spawn timers */
+    sawTimer: 0, spikeTimer: 0, seekerTimer: 0,
+    starTimer: 0, shieldTimer: 0, slowmoTimer: 0, magnetTimer: 0, heavyTimer: 0,
+
+    /* fx */
+    shake: 0, dotKick: 0, hue: CFG.bgHueBase,
+  };
+
+  for (let i = 0; i < CFG.bgDots; i++){
+    g.bgDots.push({
+      x: Math.random() * 2000, y: Math.random() * 1200,
+      r: rand(CFG.bgDotRMin, CFG.bgDotRMax),
+      s: rand(CFG.bgDotSpeedMin, CFG.bgDotSpeedMax),
+      a: rand(CFG.bgDotAlphaMin, CFG.bgDotAlphaMax),
+      k: rand(CFG.bgDotKickMin, CFG.bgDotKickMax),
+    });
+  }
+  return g;
+}
+
+function resetBall(g){
+  const b = g.ball;
+  b.x = g.W / 2; b.y = g.H * 0.4;
+  b.vx = rand(-30, 30); b.vy = -250;
+  b.spin = 0; b.ang = 0; b.dispAng = -Math.PI / 2;
+  b.wAmp = 0; b.wPhase = 0;
+  b.dead = false;
+  b.blinkT = 2.5; b.blink = 0;
+  b.trail.length = 0;
+}
+
+function resetRun(g){
+  g.score = 0; g.combo = 0; g.comboTimer = 0; g.maxCombo = 0; g.bounces = 0;
+  g.newBest = false;
+  g.elapsed = 0;
+  g.lastBounceAt = g.totalT - 9;      // first bounce of a run is always full charge
+  g.timeScale = 1; g.deathT = 0; g.panelShown = false; g.hitStop = 0;
+  g.shake = 0; g.dotKick = 0;
+  g.shield = false; g.slowmoT = 0; g.magnetT = 0; g.heavyT = 0;
+
+  g.hazards.length = 0; g.pickups.length = 0;
+  g.particles.length = 0; g.rings.length = 0; g.texts.length = 0; g.edgeWarns.length = 0;
+
+  g.sawTimer = CFG.hazardDelay;                  // DIFF-02 grace period
+  g.spikeTimer = CFG.spikeFirstAfterGate;
+  g.seekerTimer = CFG.seekerFirstAfterGate;
+  g.starTimer = CFG.starFirst;
+  g.shieldTimer = CFG.shieldFirst;
+  g.slowmoTimer = CFG.slowmoFirst;
+  g.magnetTimer = CFG.magnetFirst;
+  g.heavyTimer = CFG.heavyFirst;
+
+  resetBall(g);
+}
+
+/* DIFF-01 ramp, then pickup multipliers, then the hard cap (DIFF-05). */
+function gravityNow(g){
+  let gr = Math.min(CFG.gravityMax, CFG.gravityBase + g.elapsed * CFG.gravityRamp);
+  if (g.slowmoT > 0) gr *= CFG.slowmoGravityMul;
+  if (g.heavyT > 0) gr *= CFG.heavyGravityMul;
+  return Math.min(gr, CFG.gravityHardCap);
+}
+
+function countKind(g, kind){
+  let n = 0;
+  for (let i = 0; i < g.hazards.length; i++) if (g.hazards[i].kind === kind) n++;
+  return n;
+}
+
+
+/* ===================== fx.js ===================== */
+
+/* fx.js — particles, rings, floating text, screen shake, background drift.
+ * Budget is hard-capped here (guide §6): <=120 particles, <=6 rings, <=8 texts.
+ * Reverse-iteration splice, as in the prototype.
+ */
+
+
+function burst(g, x, y, color, n, speed){
+  for (let i = 0; i < n; i++){
+    if (g.particles.length >= CFG.particleCap) return;
+    const a = Math.random() * TAU, s = rand(0.25, 1) * speed;
+    const life = rand(CFG.particleLifeMin, CFG.particleLifeMax);
+    g.particles.push({
+      x: x, y: y,
+      vx: Math.cos(a) * s, vy: Math.sin(a) * s - 60,
+      life: life, max: life,
+      s: rand(CFG.particleSizeMin, CFG.particleSizeMax),
+      color: color,
+    });
+  }
+}
+
+function addRing(g, x, y, r, vr, life, color){
+  if (g.rings.length >= CFG.ringCap) g.rings.shift();
+  g.rings.push({ x: x, y: y, r: r, vr: vr, life: life, max: life, color: color });
+}
+
+function addText(g, x, y, txt, color){
+  if (g.texts.length >= CFG.textCap) g.texts.shift();
+  g.texts.push({ x: x, y: y, txt: txt, life: CFG.textLife, color: color });
+}
+
+function addScore(g, n, x, y, color){
+  g.score += n;
+  addText(g, x, y, '+' + n, color);
+}
+
+function shakeBy(g, amount){
+  if (g.reducedMotion) return;                 // A11Y-01
+  g.shake = Math.max(g.shake, amount);
+}
+
+/* Screen-edge telegraph: a hazard is about to enter from this side (Phase 2).
+ * `color` is the strong edge, `fade` the same hue at alpha 0 for the gradient. */
+function addEdgeWarn(g, side, pos, color, fade){
+  if (g.reducedMotion) return;
+  if (g.edgeWarns.length >= CFG.edgeWarnCap) g.edgeWarns.shift();
+  g.edgeWarns.push({
+    side: side, pos: pos, color: color, fade: fade,
+    life: CFG.edgeWarnTime, max: CFG.edgeWarnTime,
+  });
+}
+
+function updateFx(g, dt){
+  g.shake = decay(g.shake, CFG.shakeDecay, dt);
+  if (g.shake < CFG.shakeMin) g.shake = 0;
+  g.dotKick = decay(g.dotKick, CFG.dotKickDecay, dt);
+
+  for (let i = g.particles.length - 1; i >= 0; i--){
+    const p = g.particles[i];
+    p.life -= dt;
+    if (p.life <= 0){ g.particles.splice(i, 1); continue; }
+    p.vy += CFG.particleGravity * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+  }
+
+  for (let i = g.rings.length - 1; i >= 0; i--){
+    const r = g.rings[i];
+    r.life -= dt;
+    if (r.life <= 0){ g.rings.splice(i, 1); continue; }
+    r.r += r.vr * dt;
+  }
+
+  for (let i = g.texts.length - 1; i >= 0; i--){
+    const t = g.texts[i];
+    t.life -= dt; t.y -= CFG.textRise * dt;
+    if (t.life <= 0) g.texts.splice(i, 1);
+  }
+
+  for (let i = g.edgeWarns.length - 1; i >= 0; i--){
+    const w = g.edgeWarns[i];
+    w.life -= dt;
+    if (w.life <= 0) g.edgeWarns.splice(i, 1);
+  }
+
+  if (!g.reducedMotion){
+    for (let i = 0; i < g.bgDots.length; i++){
+      const d = g.bgDots[i];
+      d.y += (d.s + g.dotKick * d.k) * dt;
+      if (d.y > g.H + 10){ d.y = -10; d.x = Math.random() * g.W; }
+      if (d.x > g.W) d.x -= g.W;
+    }
+    g.hue = (CFG.bgHueBase + g.totalT * CFG.bgHueRate) % 360;
+  } else {
+    g.hue = CFG.bgHueBase;
+  }
+
+  /* ambient ball life (PHYS-05) */
+  const b = g.ball;
+  b.blinkT -= dt;
+  if (b.blinkT <= 0){ b.blink = CFG.blinkTime; b.blinkT = rand(CFG.blinkMin, CFG.blinkMax); }
+  if (b.blink > 0) b.blink -= dt;
+
+  /* jelly wobble keeps oscillating even during hit-stop (Phase 2) */
+  b.wPhase += dt * CFG.wobbleRate;
+  b.wAmp = decay(b.wAmp, CFG.wobbleDecay, dt);
+}
+
+
+/* ===================== ball.js ===================== */
+
+/* ball.js — the core verb (CORE-02..09) and the ball's own integration.
+ * PHYS-01: semi-implicit Euler. The dt clamp itself lives in the loop, nowhere else.
+ */
+
+
+/* One pointer press. `auto` = attract-mode autopilot (no score, no combo, no miss). */
+function attemptBounce(g, cx, cy, auto){
+  const b = g.ball;
+  if (b.dead) return false;
+
+  const dx = b.x - cx, dy = b.y - cy;
+  const d = Math.hypot(dx, dy) || 1;
+
+  if (d > b.r * CFG.hitRadiusMul){
+    /* CORE-07: a miss breaks the combo and does nothing else. */
+    if (!auto && g.state === 'play'){
+      addRing(g, cx, cy, CFG.missRingR, CFG.missRingVr, CFG.missRingLife, 'rgba(255,255,255,0.5)');
+      if (g.combo >= 2) addText(g, cx, cy - CFG.missTextDy, 'combo lost', '#98a1b3');
+      g.combo = 0; g.comboTimer = 0;
+      Snd.miss();
+    }
+    return false;
+  }
+
+  /* CORE-08: rate limit. Also what keeps two simultaneous touches from double-applying. */
+  if (g.state === 'play' && g.totalT - g.lastBounceAt < CFG.bounceCooldown) return false;
+
+  /* push away from the pointer, with a guaranteed upward component (CORE-02/03) */
+  let nx = dx / d, ny = dy / d;
+  if (ny > CFG.bounceMinNy){
+    ny = CFG.bounceMinNy;
+    const m = Math.hypot(nx, ny);
+    nx /= m; ny /= m;
+  }
+
+  /* CORE-05: charge — quick taps are weak, letting it fall is full power */
+  const charge = clamp((g.totalT - g.lastBounceAt) / CFG.bounceChargeTime, 0, 1);
+  const factor = CFG.bounceMinFactor + (1 - CFG.bounceMinFactor) * charge;
+  const power = CFG.bouncePower * factor;
+
+  b.vx = nx * power * CFG.bounceLateralMul;
+  b.vy = -power * Math.max(CFG.bounceMinUpward, -ny);
+
+  /* CORE-09: off-centre contact imparts spin; a dead-centre hit barely does */
+  const off = clamp(d / (b.r * CFG.hitRadiusMul), 0, 1);
+  b.spin = -nx * CFG.spinFromPush * (1 - CFG.spinFromOffsetGain + CFG.spinFromOffsetGain * off);
+
+  /* PHYS-03: jelly squash impulse */
+  b.wAmp = CFG.bounceWobbleBase + CFG.bounceWobbleAdd * factor;
+  b.wPhase = 0;
+
+  addRing(g, b.x, b.y + b.r * CFG.bounceRingYMul, b.r * CFG.bounceRingRMul,
+          CFG.bounceRingVr, CFG.bounceRingLife, 'rgba(255,209,102,0.55)');
+  g.dotKick = CFG.dotKickOnBounce;
+  g.hitStop = CFG.hitStopTime;               // Phase 2: 3-frame freeze, wobble keeps running
+  g.lastBounceAt = g.totalT;
+
+  if (g.state === 'play'){
+    g.combo = g.comboTimer > 0 ? g.combo + 1 : 1;
+    g.comboTimer = CFG.comboWindow;
+    g.maxCombo = Math.max(g.maxCombo, g.combo);
+    g.bounces++;
+    /* SCORE-01/03 */
+    addScore(g, CFG.bouncePoints * Math.min(g.combo, CFG.comboCap),
+             b.x, b.y - b.r - CFG.scoreTextDy, '#ffd166');
+    Snd.bounce(g.combo);
+  } else if (!auto){
+    Snd.bounce(1);
+  }
+  return true;
+}
+
+/* Ball integration + static bounds. Returns nothing; floor death is decided in game.js
+ * so that the menu's attract mode can save the ball instead. */
+function updateBall(g, dt, gravity){
+  const b = g.ball;
+
+  b.vy += gravity * dt;                                  // semi-implicit Euler
+  b.x += b.vx * dt;
+  b.y += b.vy * dt;
+
+  b.ang += b.spin * dt;
+  b.spin = decay(b.spin, CFG.spinDecay, dt);
+
+  /* CORE-06: side walls reflect with damping */
+  if (b.x < b.r){
+    b.x = b.r; b.vx = Math.abs(b.vx) * CFG.wallRest;
+    b.wAmp = Math.max(b.wAmp, CFG.wallWobble); Snd.wall();
+  } else if (b.x > g.W - b.r){
+    b.x = g.W - b.r; b.vx = -Math.abs(b.vx) * CFG.wallRest;
+    b.wAmp = Math.max(b.wAmp, CFG.wallWobble); Snd.wall();
+  }
+  /* soft ceiling: the ball may leave the top but is pushed back */
+  const ceil = -b.r * CFG.ceilingPad;
+  if (b.y < ceil){ b.y = ceil; b.vy = Math.abs(b.vy) * CFG.ceilingRest; }
+
+  /* PHYS-04: stretch follows the velocity vector; the face counter-rotates */
+  const sp = Math.hypot(b.vx, b.vy);
+  if (sp > CFG.dispSpeedMin) b.dispAng = lerpAngle(b.dispAng, Math.atan2(b.vy, b.vx), Math.min(1, CFG.dispLerp * dt));
+
+  if (!g.reducedMotion){
+    b.trail.push({ x: b.x, y: b.y });
+    if (b.trail.length > CFG.trailLen) b.trail.shift();
+  }
+}
+
+/* CORE-04: floor contact ends the run. Kept separate so attract mode can bypass it. */
+function ballHitFloor(g){
+  const b = g.ball;
+  return b.y + b.r >= g.H;
+}
+
+function deathBurst(g){
+  const b = g.ball;
+  burst(g, b.x, b.y, '#ff6b6b', CFG.deathParticles, CFG.deathBurstSpeed);
+  burst(g, b.x, b.y, '#ffd166', CFG.deathParticles2, CFG.deathBurst2Speed);
+  addRing(g, b.x, b.y, b.r, CFG.deathRingVr, CFG.deathRingLife, 'rgba(255,93,115,0.7)');
+  shakeBy(g, CFG.deathShake);
+}
+
+
+/* ===================== hud.js ===================== */
+
+/* hud.js — everything drawn in DOM/CSS rather than canvas (UI-03, UI-05).
+ * DOM writes are cached: we only touch the document when a value actually changed.
+ */
+
+
+let hudScore = -1;
+let hudBest = -1;
+let hudCombo = -1;
+let hudComboWidth = -1;
+let hudFxKey = '';
+let hudPauseState = '';
+
+function focusEl(el){
+  if (el && typeof el.focus === 'function'){
+    try { el.focus({ preventScroll: true }); } catch (e){ el.focus(); }
+  }
+}
+
+function hideOverlays(){
+  DOM.menu.classList.add('hidden');
+  DOM.pauseEl.classList.add('hidden');
+  DOM.over.classList.add('hidden');
+}
+
+function showMenu(){
+  hideOverlays();
+  DOM.menu.classList.remove('hidden');
+  focusEl(DOM.startBtn);
+}
+
+function showPause(g){
+  hideOverlays();
+  DOM.pauseReason.textContent = g.pausedBy === 'tab'
+    ? 'You switched away, so the ball is waiting for you.'
+    : 'The jelly ball is holding its breath.';
+  DOM.pauseEl.classList.remove('hidden');
+  focusEl(DOM.resumeBtn);
+}
+
+function fillGameOver(g){
+  DOM.finalScoreVal.textContent = g.score;
+  DOM.newBest.style.display = g.newBest ? 'inline-block' : 'none';
+  DOM.finalBounces.textContent = g.bounces;
+  DOM.finalCombo.textContent = '\u00d7' + Math.min(g.maxCombo, CFG.comboCap);
+  DOM.finalTime.textContent = Math.floor(g.elapsed) + 's';
+  DOM.finalBest.textContent = g.best;
+}
+
+function showGameOver(g){
+  fillGameOver(g);
+  hideOverlays();
+  DOM.over.classList.remove('hidden');
+  focusEl(DOM.retryBtn);
+}
+
+function syncMuteButton(){
+  const muted = Snd.muted;
+  DOM.muteBtn.classList.toggle('muted', muted);
+  DOM.muteBtn.innerHTML = muted ? '&#9834; OFF' : '&#9834; ON';
+  DOM.muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+}
+
+function syncPauseButton(g){
+  const key = g.state;
+  if (key === hudPauseState) return;
+  hudPauseState = key;
+  const active = key === 'play' || key === 'paused';
+  DOM.pauseBtn.classList.toggle('hidden', !active);
+  DOM.pauseBtn.innerHTML = key === 'paused' ? '&#9654;' : '&#10074;&#10074;';
+  DOM.pauseBtn.setAttribute('aria-label', key === 'paused' ? 'Resume' : 'Pause');
+}
+
+/* Effect pills: one line of visible feedback per live mechanic (guide rule 3). */
+function effectsMarkup(g){
+  let html = '';
+  if (g.shield) html += '<span class="pill pill-shield">SHIELD</span>';
+  if (g.slowmoT > 0) html += '<span class="pill pill-slowmo">SLOW<i>' + Math.ceil(g.slowmoT) + 's</i></span>';
+  if (g.magnetT > 0) html += '<span class="pill pill-magnet">MAGNET<i>' + Math.ceil(g.magnetT) + 's</i></span>';
+  if (g.heavyT > 0) html += '<span class="pill pill-heavy">HEAVY<i>' + Math.ceil(g.heavyT) + 's</i></span>';
+  return html;
+}
+
+function updateHud(g){
+  if (g.score !== hudScore){
+    hudScore = g.score;
+    DOM.score.textContent = g.score;
+    DOM.score.classList.remove('pop');
+    void DOM.score.offsetWidth;
+    DOM.score.classList.add('pop');
+  }
+  if (g.best !== hudBest){
+    hudBest = g.best;
+    DOM.best.textContent = 'BEST ' + g.best;
+  }
+
+  /* SCORE-04: remaining combo window must be visible */
+  const showCombo = g.combo >= 2 && g.state === 'play';
+  DOM.comboBox.style.opacity = showCombo ? 1 : 0;
+  if (showCombo){
+    const capped = Math.min(g.combo, CFG.comboCap);
+    if (capped !== hudCombo){
+      hudCombo = capped;
+      DOM.combo.innerHTML = '&times;' + capped + (g.combo >= CFG.comboCap ? ' MAX' : '');
+    }
+    const pct = Math.round(g.comboTimer / CFG.comboWindow * 100);
+    if (pct !== hudComboWidth){
+      hudComboWidth = pct;
+      DOM.comboBar.style.width = pct + '%';
+    }
+  } else if (hudCombo !== -1){
+    hudCombo = -1; hudComboWidth = -1;
+  }
+
+  const fx = effectsMarkup(g);
+  if (fx !== hudFxKey){
+    hudFxKey = fx;
+    DOM.effects.innerHTML = fx;
+  }
+
+  syncPauseButton(g);
+}
+
+/* Called once at boot so a cached value can never hide a real change. */
+function resetHudCache(){
+  hudScore = -1; hudBest = -1; hudCombo = -1; hudComboWidth = -1; hudFxKey = '\u0000';
+  hudPauseState = '';
+}
+
+
+/* ===================== flow.js ===================== */
+
+/* flow.js — state machine transitions (UI-01, UI-04, UI-06).
+ * menu -> play -> (paused) -> dying -> over -> play ...
+ * Nothing here is called from an event handler without going through input.js.
+ */
+
+
+function nowMs(){
+  return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+}
+
+/* SCORE-06 (best) and AUD-05 (mute) — both read through the guarded storage layer. */
+function loadPersisted(g){
+  g.best = Math.max(0, Math.floor(LS.num(KEYS.best, 0)));
+  Snd.setMuted(LS.bool(KEYS.mute, false));
+  syncMuteButton();
+}
+
+function startGame(g){
+  Snd.ensure();                       // AUD-02: inside a user gesture
+  resetRun(g);
+  g.state = 'play';
+  hideOverlays();
+  Snd.start();
+  announce('Run started. Click near the ball to bounce it.');
+}
+
+/* CORE-04 / HAZ-03 both end here. The panel is delayed so the death lands first. */
+function die(g){
+  if (g.ball.dead) return;
+  g.ball.dead = true;
+  g.state = 'dying';
+  g.deathT = 0;
+  g.panelShown = false;
+  g.overAt = nowMs();
+  deathBurst(g);
+  Snd.die();
+
+  g.newBest = g.score > g.best;
+  if (g.newBest){
+    g.best = g.score;
+    LS.set(KEYS.best, String(g.best));     // silently ignored if storage is blocked
+  }
+  announce('Run over. Score ' + g.score + (g.newBest ? ', new best!' : '') + ' Best ' + g.best + '.');
+}
+
+/* Real-time (unscaled) driver for the death sequence and the restart lock. */
+function updateFlow(g, dtReal){
+  if (g.state === 'dying'){
+    g.deathT += dtReal;
+    g.timeScale = approach(g.timeScale, CFG.deathTimeScale, CFG.deathTimeScaleRate * dtReal);
+    if (g.deathT >= CFG.deathSlowmo) g.state = 'over';
+  } else if (g.state === 'over'){
+    g.timeScale = 1;
+    if (!g.panelShown && nowMs() - g.overAt >= (CFG.deathSlowmo + CFG.overPanelDelay) * 1000){
+      g.panelShown = true;
+      showGameOver(g);
+    }
+  } else {
+    g.timeScale = 1;
+  }
+}
+
+/* UI-04: locked for restartLock after death so a panic click cannot skip the panel. */
+function tryRestart(g){
+  if (g.state !== 'over') return false;
+  if (nowMs() - g.overAt < CFG.restartLock * 1000) return false;
+  startGame(g);
+  return true;
+}
+
+function pauseGame(g, by){
+  if (g.state !== 'play') return false;
+  g.state = 'paused';
+  g.pausedBy = by || 'user';
+  showPause(g);
+  Snd.pause();
+  announce('Paused.');
+  return true;
+}
+
+function resumeGame(g){
+  if (g.state !== 'paused') return false;
+  g.state = 'play';
+  g.pausedBy = null;
+  hideOverlays();
+  Snd.ensure();
+  Snd.resume();
+  announce('Resumed.');
+  return true;
+}
+
+function togglePause(g){
+  return g.state === 'paused' ? resumeGame(g) : pauseGame(g, 'user');
+}
+
+function quitToMenu(g){
+  g.state = 'menu';
+  g.pausedBy = null;
+  g.timeScale = 1;
+  resetRun(g);
+  resetBall(g);
+  showMenu();
+}
+
+function toggleMute(){
+  Snd.setMuted(!Snd.muted);
+  LS.set(KEYS.mute, Snd.muted ? '1' : '0');
+  syncMuteButton();
+  if (!Snd.muted){
+    Snd.ensure();
+    Snd.resume();          // audible confirmation that sound is back
+  }
+  announce(Snd.muted ? 'Sound off.' : 'Sound on.');
+  return Snd.muted;
+}
+
+
+/* ===================== spawn.js ===================== */
+
+/* spawn.js — every spawner obeys the three rules from guide §6:
+ *   (a) re-roll positions that are too close to the ball,
+ *   (b) count live entities against their cap,
+ *   (c) hazards enter from off-screen edges, with a telegraph.
+ * Fairness (pillar 3): a hazard must be reachable no sooner than hazardMinVisible
+ * seconds after it spawns. Rather than slowing the hazard down (which feels wrong)
+ * we push its spawn point further off-screen, and the edge flash covers the wait.
+ */
+
+
+/* HAZ-02: at least spawnMargin of vertical separation, up to spawnRerolls attempts.
+ * If the re-rolls run out (which happens whenever the ball sits mid-screen, where
+ * most of the spawn band is forbidden) fall back to a height that IS safe, so the
+ * 130px rule holds in practice rather than on a best-effort basis. */
+function rollSafeY(g, yMin, yMax){
+  let y = rand(yMin, yMax);
+  let tries = 0;
+  while (Math.abs(y - g.ball.y) < CFG.spawnMargin && tries++ < CFG.spawnRerolls){
+    y = rand(yMin, yMax);
+  }
+  if (Math.abs(y - g.ball.y) >= CFG.spawnMargin) return y;
+
+  const below = g.ball.y - CFG.spawnMargin;      // higher on screen than the ball
+  const above = g.ball.y + CFG.spawnMargin;      // lower on screen than the ball
+  if (below >= yMin) return rand(yMin, below);
+  if (above <= yMax) return rand(above, yMax);
+  return y;                                      // band covers the whole screen: unavoidable
+}
+
+/* Distance the spawn point must be pushed off-screen so travel time >= hazardMinVisible. */
+function offscreenStart(g, edgeX, speed){
+  const travel = Math.abs(g.ball.x - edgeX);
+  return Math.max(0, speed * CFG.hazardMinVisible - travel);
+}
+
+function roomFor(g){
+  return g.hazards.length < CFG.hazardCap;      // HAZ-04
+}
+
+/* ------------------------------------------------------------------ saw (HAZ-01) */
+function spawnSaw(g){
+  if (!roomFor(g)) return null;
+  const fromLeft = Math.random() < 0.5;
+  const y = rollSafeY(g, g.H * CFG.sawSpawnYMinFrac, g.H * CFG.sawSpawnYMaxFrac);
+  const speed = rand(CFG.sawSpeedMin, CFG.sawSpeedMax)
+              + Math.min(CFG.sawSpeedRampCap, g.elapsed * CFG.sawSpeedRamp);   // DIFF-04
+  const edgeX = fromLeft ? -CFG.spawnOffscreen : g.W + CFG.spawnOffscreen;
+  const extra = offscreenStart(g, edgeX, speed);
+  const side = fromLeft ? 'left' : 'right';
+
+  const h = {
+    kind: 'saw', side: side,
+    x: fromLeft ? edgeX - extra : edgeX + extra,
+    y: y, cy: y,
+    vx: (fromLeft ? 1 : -1) * speed,
+    r: rand(CFG.sawRadiusMin, CFG.sawRadiusMax),
+    rot: rand(0, TAU),
+    rotV: rand(CFG.sawSpinMin, CFG.sawSpinMax) * (fromLeft ? 1 : -1),
+    bobP: rand(0, TAU),
+    bobAmp: rand(CFG.sawBobAmpMin, CFG.sawBobAmpMax),
+    warn: CFG.hazardWarnTime, t: 0, life: Infinity,
+    prevGap: Infinity, nearAwarded: false, entered: false,
+  };
+  g.hazards.push(h);
+  addEdgeWarn(g, side, y, 'rgba(255,93,115,0.9)', 'rgba(255,93,115,0)');
+  return h;
+}
+
+/* ------------------------------------------------- falling spike (HAZ-06, Phase 3) */
+function spawnSpike(g){
+  if (!roomFor(g) || countKind(g, 'spike') >= CFG.spikeCap) return null;
+  /* Targets where the ball WAS when the telegraph started, never where it is now:
+   * the 1s warning is the dodge window. */
+  const x = clamp(g.ball.x, CFG.spikeEdgePad, Math.max(CFG.spikeEdgePad, g.W - CFG.spikeEdgePad));
+  const h = {
+    kind: 'spike', side: 'top',
+    x: x, y: -CFG.spikeR * 2, cy: -CFG.spikeR * 2,
+    vx: 0, vy: 0,
+    r: CFG.spikeR, rot: 0, rotV: 0, bobP: 0, bobAmp: 0,
+    warn: CFG.spikeWarnTime, t: 0, life: Infinity,
+    prevGap: Infinity, nearAwarded: false, entered: false,
+  };
+  g.hazards.push(h);
+  addEdgeWarn(g, 'top', x, 'rgba(255,93,115,0.95)', 'rgba(255,93,115,0)');
+  Snd.spikeWarn();
+  return h;
+}
+
+/* -------------------------------------------------- seeker drone (HAZ-06, Phase 3) */
+function spawnSeeker(g){
+  if (!roomFor(g) || countKind(g, 'seeker') >= CFG.seekerCap) return null;
+  const fromLeft = Math.random() < 0.5;
+  const y = rollSafeY(g, g.H * CFG.sawSpawnYMinFrac, g.H * CFG.sawSpawnYMaxFrac);
+  const edgeX = fromLeft ? -CFG.spawnOffscreen : g.W + CFG.spawnOffscreen;
+  const extra = offscreenStart(g, edgeX, CFG.seekerSpeed);
+  const side = fromLeft ? 'left' : 'right';
+
+  const h = {
+    kind: 'seeker', side: side,
+    x: fromLeft ? edgeX - extra : edgeX + extra,
+    y: y, cy: y,
+    vx: 0, vy: 0,
+    ang: fromLeft ? 0 : Math.PI,
+    r: CFG.seekerR, rot: 0, rotV: CFG.seekerRotRate, bobP: 0, bobAmp: 0,
+    warn: CFG.seekerWarnTime, t: 0, life: CFG.seekerLife,
+    prevGap: Infinity, nearAwarded: false, entered: false,
+  };
+  g.hazards.push(h);
+  addEdgeWarn(g, side, y, 'rgba(195,155,255,0.95)', 'rgba(195,155,255,0)');
+  Snd.seekerWarn();
+  return h;
+}
+
+/* ------------------------------------------------------------------- pickups (PICK) */
+function pickupRadius(type){
+  if (type === 'star') return CFG.starR;
+  if (type === 'shield') return CFG.shieldR;
+  if (type === 'slowmo') return CFG.slowmoR;
+  if (type === 'magnet') return CFG.magnetR;
+  return CFG.heavyR;                     // 'heavy'
+}
+
+function pickupLife(type){
+  return type === 'star' ? CFG.starLife : CFG.pickupLife;
+}
+
+/* PICK-03: prefer the horizontal band that is already far enough from the ball,
+ * then verify; a bounded re-roll plus a corner fallback makes it a hard guarantee. */
+function rollPickupPos(g){
+  const xMin = CFG.pickupXPad;
+  const xMax = Math.max(xMin + 1, g.W - CFG.pickupXPad);
+  const yMin = CFG.pickupYMin;
+  const yMax = Math.max(yMin + 1, g.H * CFG.pickupYMaxFrac);
+  const b = g.ball, m = CFG.spawnMargin;
+
+  const leftSpan = Math.min(xMax, b.x - m) - xMin;
+  const rightSpan = xMax - Math.max(xMin, b.x + m);
+  let x = 0, y = 0;
+
+  for (let tries = 0; tries < CFG.spawnRerolls; tries++){
+    if (leftSpan > 0 && (rightSpan <= 0 || Math.random() < leftSpan / (leftSpan + rightSpan))){
+      x = rand(xMin, xMin + leftSpan);
+    } else if (rightSpan > 0){
+      x = rand(Math.max(xMin, b.x + m), xMax);
+    } else {
+      x = rand(xMin, xMax);            // very narrow screen: the y test carries it
+    }
+    y = rand(yMin, yMax);
+    if (Math.hypot(x - b.x, y - b.y) >= m) return { x: x, y: y };
+  }
+
+  x = b.x < g.W / 2 ? xMax : xMin;
+  y = Math.hypot(x - b.x, yMin - b.y) >= m ? yMin : yMax;
+  return { x: x, y: y };
+}
+
+function spawnPickup(g, type){
+  if (g.pickups.length >= CFG.pickupCap) return null;         // PICK-04
+  if (type === 'shield' && g.shield) return null;             // PICK-02
+  const pos = rollPickupPos(g);
+  const p = {
+    type: type, x: pos.x, y: pos.y,
+    r: pickupRadius(type), life: pickupLife(type),
+    t: 0, ph: rand(0, TAU), pulled: false,
+  };
+  g.pickups.push(p);
+  return p;
+}
+
+/* ------------------------------------------------------------------ pacing (DIFF-03) */
+function sawInterval(g){
+  return Math.max(CFG.hazardIntervalMin, CFG.hazardIntervalStart - g.elapsed * CFG.hazardIntervalRamp);
+}
+
+function spikeInterval(g){
+  return Math.max(CFG.spikeIntervalMin, CFG.spikeIntervalStart - g.elapsed * CFG.spikeIntervalRamp);
+}
+
+function updateSpawners(g, dt){
+  if (g.state !== 'play') return;
+
+  /* saws: DIFF-02 grace period is already baked into sawTimer by resetRun */
+  g.sawTimer -= dt;
+  if (g.sawTimer <= 0){
+    spawnSaw(g);
+    g.sawTimer = sawInterval(g);
+  }
+
+  if (g.elapsed >= CFG.spikeGate){
+    g.spikeTimer -= dt;
+    if (g.spikeTimer <= 0){
+      spawnSpike(g);
+      g.spikeTimer = spikeInterval(g);
+    }
+  }
+
+  if (g.elapsed >= CFG.seekerGate){
+    g.seekerTimer -= dt;
+    if (g.seekerTimer <= 0){
+      spawnSeeker(g);
+      g.seekerTimer = rand(CFG.seekerIntervalMin, CFG.seekerIntervalMax);
+    }
+  }
+
+  g.starTimer -= dt;
+  if (g.starTimer <= 0){
+    g.starTimer = spawnPickup(g, 'star') ? rand(CFG.starIntervalMin, CFG.starIntervalMax) : CFG.pickupRetry;
+  }
+
+  g.shieldTimer -= dt;
+  if (g.shieldTimer <= 0){
+    spawnPickup(g, 'shield');                                  // PICK-02: skipped while held
+    g.shieldTimer = rand(CFG.shieldIntervalMin, CFG.shieldIntervalMax);
+  }
+
+  g.slowmoTimer -= dt;
+  if (g.slowmoTimer <= 0){
+    g.slowmoTimer = spawnPickup(g, 'slowmo') ? rand(CFG.slowmoIntervalMin, CFG.slowmoIntervalMax) : CFG.pickupRetry;
+  }
+
+  g.magnetTimer -= dt;
+  if (g.magnetTimer <= 0){
+    g.magnetTimer = spawnPickup(g, 'magnet') ? rand(CFG.magnetIntervalMin, CFG.magnetIntervalMax) : CFG.pickupRetry;
+  }
+
+  if (g.elapsed >= CFG.heavyGate){
+    g.heavyTimer -= dt;
+    if (g.heavyTimer <= 0){
+      g.heavyTimer = spawnPickup(g, 'heavy') ? rand(CFG.heavyIntervalMin, CFG.heavyIntervalMax) : CFG.pickupRetry;
+    }
+  }
+}
+
+
+/* ===================== entities.js ===================== */
+
+/* entities.js — hazard movement, contact resolution, pickup effects.
+ * HAZ-03: contact kills unless a shield is held, in which case the shield is
+ * consumed instead (PICK-05) and the hazard is destroyed with it.
+ * Phase 2: skimming a hazard without touching it pays a near-miss bonus.
+ */
+
+
+function pickupColor(type){
+  if (type === 'star') return '#ffd166';
+  if (type === 'shield') return '#4ecdc4';
+  if (type === 'slowmo') return '#7fb2ff';
+  if (type === 'magnet') return '#c39bff';
+  return '#c98b3c';                    // heavy
+}
+
+/* ------------------------------------------------------------------ hazards */
+
+function activate(g, h){
+  if (h.kind === 'spike'){
+    h.y = -h.r * 2; h.cy = h.y; h.vy = 0;
+    Snd.spikeDrop();
+  }
+}
+
+function stepHazard(g, h, dt){
+  if (h.kind === 'saw'){
+    h.x += h.vx * dt;
+    h.rot += h.rotV * dt;
+    h.bobP += dt * CFG.sawBobRate;
+    h.cy = h.y + Math.sin(h.bobP) * h.bobAmp;
+    return;
+  }
+  if (h.kind === 'spike'){
+    h.vy = Math.min(CFG.spikeSpeedMax, h.vy + CFG.spikeGravity * dt);   // pillar 4 cap
+    h.y += h.vy * dt;
+    h.cy = h.y;
+    return;
+  }
+  /* seeker: slow homing with a hard turn-rate cap (pillar 4) */
+  h.life -= dt;
+  if (h.life <= 0){ crash(g, h, '#c39bff'); return; }
+  const b = g.ball;
+  const desired = Math.atan2(b.y - h.cy, b.x - h.x);
+  h.ang = turnToward(h.ang, desired, CFG.seekerTurnRate * dt);
+  h.x += Math.cos(h.ang) * CFG.seekerSpeed * dt;
+  h.cy += Math.sin(h.ang) * CFG.seekerSpeed * dt;
+  h.y = h.cy;
+  h.rot += h.rotV * dt;
+
+  if (!h.entered && h.x > h.r && h.x < g.W - h.r) h.entered = true;
+  /* dies on walls — but not the floor, which is already the player's problem */
+  if (h.entered && (h.x < h.r || h.x > g.W - h.r || h.cy < h.r)){
+    crash(g, h, '#c39bff');
+  }
+}
+
+function crash(g, h, color){
+  h.gone = true;
+  const x = clamp(h.x, 0, g.W), y = clamp(h.cy, 0, g.H);
+  burst(g, x, y, color, CFG.seekerCrashBurst, CFG.seekerCrashSpeed);
+  addRing(g, x, y, h.r * CFG.seekerCrashRingRMul, CFG.seekerCrashRingVr, CFG.seekerCrashRingLife, 'rgba(195,155,255,0.7)');
+  shakeBy(g, CFG.seekerWallShake);
+  Snd.seekerDie();
+}
+
+function outOfPlay(g, h){
+  if (h.kind === 'saw'){
+    return (h.vx > 0 && h.x > g.W + CFG.sawExitPad) || (h.vx < 0 && h.x < -CFG.sawExitPad);
+  }
+  if (h.kind === 'spike') return h.y - h.r > g.H + CFG.spikeExitPad;
+  const s = CFG.seekerBounds;
+  return h.x < -s || h.x > g.W + s || h.cy < -s || h.cy > g.H + s;
+}
+
+function consumeShield(g, h){
+  g.shield = false;
+  h.gone = true;
+  burst(g, h.x, h.cy, '#4ecdc4', CFG.shieldPopBurst, CFG.shieldPopBurstSpeed);
+  addRing(g, h.x, h.cy, CFG.shieldPopRingR, CFG.shieldPopRingVr, CFG.shieldPopRingLife, 'rgba(78,205,196,0.8)');
+  g.ball.vy -= CFG.shieldPopVy;
+  shakeBy(g, CFG.shieldPopShake);
+  addText(g, h.x, h.cy - CFG.saveTextDy, 'shield saved you!', '#4ecdc4');
+  Snd.shieldPop();                                  // PICK-05 distinct feedback
+}
+
+function nearMiss(g, h){
+  addScore(g, CFG.nearMissPoints, h.x, h.cy - CFG.nearMissTextDy, '#9fe8ff');
+  addText(g, h.x, h.cy - CFG.nearMissTextDy - CFG.nearMissTextGap, 'close!', '#9fe8ff');
+  Snd.nearMiss();
+}
+
+function resolveContact(g, h){
+  const b = g.ball;
+  const gap = Math.hypot(h.x - b.x, h.cy - b.y) - (h.r + b.r * CFG.hazardKillPad);
+
+  if (gap < 0){
+    if (g.shield) consumeShield(g, h);
+    else die(g);
+    return;
+  }
+  /* Phase 2 near-miss: gap was inside the margin last frame and is now widening */
+  if (!h.nearAwarded && h.prevGap < CFG.nearMissMargin && gap > h.prevGap){
+    h.nearAwarded = true;
+    nearMiss(g, h);
+  }
+  h.prevGap = gap;
+}
+
+function updateHazards(g, dt){
+  const playing = g.state === 'play';
+  for (let i = g.hazards.length - 1; i >= 0; i--){
+    const h = g.hazards[i];
+    h.t += dt;
+    if (h.warn > 0){                       // telegraph phase: not yet a threat
+      h.warn -= dt;
+      if (h.warn <= 0) activate(g, h);
+      continue;
+    }
+    stepHazard(g, h, dt);
+    if (h.gone || outOfPlay(g, h)){ g.hazards.splice(i, 1); continue; }
+    if (playing && !g.ball.dead) resolveContact(g, h);
+    /* a shield save destroys the hazard in the same frame it is absorbed */
+    if (h.gone) g.hazards.splice(i, 1);
+  }
+}
+
+/* ------------------------------------------------------------------ pickups */
+
+function collectPickup(g, p){
+  const color = pickupColor(p.type);
+  if (p.type === 'star'){
+    addScore(g, CFG.starPoints, p.x, p.y, color);          // PICK-01
+    Snd.star();
+  } else if (p.type === 'heavy'){
+    addScore(g, CFG.heavyPoints, p.x, p.y, color);         // risk/reward
+    g.heavyT = Math.min(g.heavyT + CFG.heavyTime, CFG.heavyStackCap);
+    addText(g, p.x, p.y - CFG.pickupTextDy, 'HEAVY!', color);
+    Snd.heavy();
+  } else if (p.type === 'shield'){
+    g.shield = true;                                       // PICK-02
+    addText(g, p.x, p.y - CFG.pickupTextDy, 'SHIELD', color);
+    Snd.shieldPickup();
+  } else if (p.type === 'slowmo'){
+    g.slowmoT = Math.min(g.slowmoT + CFG.slowmoTime, CFG.slowmoStackCap);
+    addText(g, p.x, p.y - CFG.pickupTextDy, 'SLOW-MO', color);
+    Snd.slowmo();
+  } else {                                                 // magnet
+    g.magnetT = Math.min(g.magnetT + CFG.magnetTime, CFG.magnetStackCap);
+    addText(g, p.x, p.y - CFG.pickupTextDy, 'MAGNET', color);
+    Snd.magnet();
+  }
+  burst(g, p.x, p.y, color, CFG.collectBurst, CFG.collectBurstSpeed);
+  addRing(g, p.x, p.y, p.r * CFG.collectRingRMul, CFG.collectRingVr, CFG.collectRingLife, color);
+}
+
+function updatePickups(g, dt){
+  const b = g.ball;
+  const playing = g.state === 'play';
+  for (let i = g.pickups.length - 1; i >= 0; i--){
+    const p = g.pickups[i];
+    p.t += dt;
+    p.life -= dt;
+    p.y += Math.sin(p.t * CFG.pickupDriftRate + p.ph) * CFG.pickupDriftAmp * dt;
+    p.pulled = false;
+
+    /* Phase 3 magnet: plain stars only — the heavy star stays a deliberate choice */
+    if (g.magnetT > 0 && p.type === 'star'){
+      const dx = b.x - p.x, dy = b.y - p.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 1 && d < CFG.magnetRadius){
+        const s = Math.min(d, CFG.magnetSpeed * dt);
+        p.x += dx / d * s; p.y += dy / d * s;
+        p.pulled = true;
+      }
+    }
+
+    if (p.life <= 0){ g.pickups.splice(i, 1); continue; }
+
+    if (playing && !b.dead && Math.hypot(p.x - b.x, p.y - b.y) < b.r + p.r + CFG.pickupContactPad){
+      collectPickup(g, p);
+      g.pickups.splice(i, 1);
+    }
+  }
+}
+
+
+/* ===================== render.js ===================== */
+
+/* render.js — all canvas drawing (UI-05: gameplay in canvas, menus/HUD in DOM).
+ * PERF-01: no expensive blur filters anywhere, gradients are per-frame but few,
+ * particles are fillRect. HAZ-05: every hazard is a dark fill with a bright
+ * outline so it stays legible against the shifting background hue.
+ *
+ * Shape ratios below are drawing geometry, not tunables; the gameplay numbers all
+ * live in CFG.
+ */
+
+
+const EYE_X = 0.32, EYE_Y = -0.12, EYE_RX = 0.2, EYE_RY = 0.26, PUPIL_R = 0.09;
+const MOUTH_Y = 0.22, MOUTH_R = 0.22;
+const SHEEN_X = -0.3, SHEEN_Y = -0.48, SHEEN_RX = 0.28, SHEEN_RY = 0.13, SHEEN_ROT = -0.5;
+const SAW_INNER = 0.7, SAW_HUB = 0.32, SAW_AXLE = 0.13;
+const STAR_INNER = 0.45, STAR_CORE = 5.5, HEAVY_CORE = 0.34;
+const SHIELD_RING_INSET = 2, SHIELD_DOT_R = 3.5, SHIELD_DOT_RATE = 3;
+const SLOWMO_HAND_RATE = 1.5, SLOWMO_PULSE_RATE = 3;
+const MAGNET_SWAY = 0.25, MAGNET_TIP = 0.95, MAGNET_SWAY_RATE = 2;
+const SPIKE_TAIL = 1.5, SPIKE_BODY = 0.85, SPIKE_CORE_W = 0.3, SPIKE_CORE_TAIL = 1.1;
+const SEEKER_W = 0.9, SEEKER_H = 0.8, SEEKER_ROTOR_Y = -0.55, SEEKER_EYE_R = 0.26, SEEKER_EYE_OFF = 3;
+const SEEKER_TILT_SWAY = 0.2, SEEKER_ROTOR_TILT = 0.5, SEEKER_BLINK_DIM = 0.35;
+const TRAIL_R = 0.75, HEAVY_AURA_PAD = 4, MAGNET_AURA_PAD = 7;
+const SLOWMO_BUBBLE = 1.75, SLOWMO_BUBBLE_PULSE = 4, SLOWMO_BUBBLE_ALPHA = 0.28;
+const SLOWMO_TINT_ALPHA = 0.09, HEAVY_TINT_ALPHA = 0.08;
+const CEIL_MARK_Y = 10, EDGE_ARROW_INSET = 6, MAGNET_TETHER_ALPHA = 0.35;
+const STAR_PULSE = 0.12;
+
+function createRenderer(canvas){
+  const ctx = canvas.getContext('2d');
+
+  function resize(g){
+    const dpr = Math.min(window.devicePixelRatio || 1, CFG.dprCap);   // PERF-02
+    const W = window.innerWidth, H = window.innerHeight;
+    g.W = W; g.H = H; g.dpr = dpr;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    /* QA: resize/rotate mid-run must leave the ball inside the new bounds,
+     * otherwise a shrinking window would kill the player for nothing. */
+    const b = g.ball;
+    b.x = clamp(b.x, b.r, Math.max(b.r, W - b.r));
+    b.y = clamp(b.y, -b.r * CFG.ceilingPad, Math.min(H - b.r - 1, H * 0.98));
+    for (let i = 0; i < g.hazards.length; i++){
+      if (g.hazards[i].kind === 'spike') g.hazards[i].x = clamp(g.hazards[i].x, CFG.spikeEdgePad, Math.max(CFG.spikeEdgePad, W - CFG.spikeEdgePad));
+    }
+  }
+
+  /* ------------------------------------------------------------ background */
+  function drawBackground(g){
+    const hue = g.hue;
+    const bg = ctx.createLinearGradient(0, 0, 0, g.H);
+    bg.addColorStop(0, 'hsl(' + hue + ',48%,10%)');
+    bg.addColorStop(1, 'hsl(' + ((hue + CFG.bgHueSpread) % 360) + ',52%,17%)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, g.W, g.H);
+  }
+
+  function drawDots(g){
+    ctx.fillStyle = 'hsl(' + ((g.hue + CFG.bgDotHueOffset) % 360) + ',70%,72%)';
+    for (let i = 0; i < g.bgDots.length; i++){
+      const d = g.bgDots[i];
+      ctx.globalAlpha = d.a;
+      ctx.beginPath();
+      ctx.arc(d.x % g.W, d.y, d.r, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* Phase 2: a hazard is about to enter from this edge. */
+  function drawEdgeWarns(g){
+    const w = CFG.edgeWarnWidth;
+    const L = CFG.edgeWarnArrowLen;
+    for (let i = 0; i < g.edgeWarns.length; i++){
+      const e = g.edgeWarns[i];
+      const a = clamp(e.life / e.max, 0, 1);
+      const pulse = 0.55 + 0.45 * Math.sin((1 - a) * CFG.edgeWarnPulseRate);
+      ctx.save();
+      ctx.globalAlpha = a * pulse;
+      let grad;
+      if (e.side === 'left' || e.side === 'right'){
+        const x0 = e.side === 'left' ? 0 : g.W;
+        const x1 = e.side === 'left' ? w : g.W - w;
+        grad = ctx.createLinearGradient(x0, 0, x1, 0);
+        grad.addColorStop(0, e.color);
+        grad.addColorStop(1, e.fade);
+        ctx.fillStyle = grad;
+        ctx.fillRect(Math.min(x0, x1), 0, w, g.H);
+        /* arrow at the entry height */
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        const dir = e.side === 'left' ? 1 : -1;
+        const ax = e.side === 'left' ? EDGE_ARROW_INSET : g.W - EDGE_ARROW_INSET;
+        ctx.moveTo(ax, e.pos);
+        ctx.lineTo(ax - dir * L, e.pos - L * 0.55);
+        ctx.lineTo(ax - dir * L, e.pos + L * 0.55);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        grad = ctx.createLinearGradient(0, 0, 0, w * 0.5);
+        grad.addColorStop(0, e.color);
+        grad.addColorStop(1, e.fade);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, g.W, w * 0.5);
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.moveTo(e.pos, CEIL_MARK_Y - 2);
+        ctx.lineTo(e.pos - L * 0.55, CEIL_MARK_Y - 2 + L);
+        ctx.lineTo(e.pos + L * 0.55, CEIL_MARK_Y - 2 + L);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawFloor(g){
+    if (g.state === 'play' && !g.ball.dead){
+      const danger = clamp(1 - (g.H - (g.ball.y + g.ball.r)) / (g.H * CFG.dangerFrac), 0, 1);
+      if (danger > 0){
+        const dg = ctx.createLinearGradient(0, g.H - CFG.dangerHeight, 0, g.H);
+        dg.addColorStop(0, 'rgba(255,93,115,0)');
+        dg.addColorStop(1, 'rgba(255,93,115,' + (CFG.dangerAlphaBase + CFG.dangerAlphaAdd * danger) + ')');
+        ctx.fillStyle = dg;
+        ctx.fillRect(0, g.H - CFG.dangerHeight, g.W, CFG.dangerHeight);
+      }
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.fillRect(0, g.H - CFG.floorLineH, g.W, CFG.floorLineH);
+  }
+
+  /* ------------------------------------------------------------------- fx */
+  function drawRings(g){
+    ctx.lineWidth = CFG.ringWidth;
+    for (let i = 0; i < g.rings.length; i++){
+      const r = g.rings[i];
+      ctx.globalAlpha = clamp(r.life / r.max, 0, 1);
+      ctx.strokeStyle = r.color;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawParticles(g){
+    for (let i = 0; i < g.particles.length; i++){
+      const p = g.particles[i];
+      ctx.globalAlpha = clamp(p.life / p.max, 0, 1);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawTexts(g){
+    ctx.textAlign = 'center';
+    ctx.font = '700 ' + CFG.textFontPx + 'px ui-monospace, Menlo, Consolas, monospace';
+    for (let i = 0; i < g.texts.length; i++){
+      const t = g.texts[i];
+      ctx.globalAlpha = clamp(t.life / CFG.textFadeIn, 0, 1);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.txt, t.x, t.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* -------------------------------------------------------------- pickups */
+  function starPath(R){
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++){
+      const rr = i % 2 ? R * STAR_INNER : R;
+      const a = -Math.PI / 2 + i * Math.PI / 5;
+      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath();
+  }
+
+  function drawStarShape(R, fill, core){
+    ctx.fillStyle = fill;
+    starPath(R);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10,12,20,0.55)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (core > 0){
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      starPath(core);
+      ctx.fill();
+    }
+  }
+
+  function drawPickup(g, p){
+    const blinkWindow = p.type === 'star' ? CFG.starBlink : CFG.pickupBlink;
+    /* PICK-01: blink warning during the final seconds before despawn */
+    const alpha = p.life < blinkWindow
+      ? 0.35 + 0.65 * Math.abs(Math.sin(p.life * CFG.pickupBlinkRate))
+      : 1;
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.globalAlpha = alpha;
+
+    if (p.type === 'star'){
+      ctx.rotate(p.t * CFG.starSpin);
+      const s = 1 + Math.sin(p.t * CFG.starPulse) * STAR_PULSE;
+      ctx.scale(s, s);
+      drawStarShape(p.r, '#ffd166', STAR_CORE);
+    } else if (p.type === 'heavy'){
+      ctx.rotate(-p.t * CFG.starSpin * 0.6);
+      drawStarShape(p.r, '#c98b3c', 0);
+      ctx.rotate(p.t * CFG.starSpin * 0.6);
+      /* heavier: a dark core and a downward chevron saying "this drags you down" */
+      ctx.fillStyle = 'rgba(20,14,6,0.75)';
+      ctx.beginPath(); ctx.arc(0, 0, p.r * HEAVY_CORE, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#ffd166';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(-7, p.r + 4); ctx.lineTo(0, p.r + 10); ctx.lineTo(7, p.r + 4);
+      ctx.stroke();
+    } else if (p.type === 'shield'){
+      ctx.strokeStyle = '#4ecdc4';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, p.r - SHIELD_RING_INSET, 0, TAU); ctx.stroke();
+      const a = p.t * SHIELD_DOT_RATE;
+      ctx.fillStyle = '#4ecdc4';
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * (p.r - SHIELD_RING_INSET), Math.sin(a) * (p.r - SHIELD_RING_INSET), SHIELD_DOT_R, 0, TAU);
+      ctx.fill();
+    } else if (p.type === 'slowmo'){
+      const pulse = 1 + Math.sin(p.t * SLOWMO_PULSE_RATE) * 0.08;
+      ctx.globalAlpha = alpha * SLOWMO_BUBBLE_ALPHA;
+      ctx.fillStyle = '#7fb2ff';
+      ctx.beginPath(); ctx.arc(0, 0, p.r * pulse, 0, TAU); ctx.fill();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = '#7fb2ff';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, p.r * pulse, 0, TAU); ctx.stroke();
+      /* clock hands: reads as "time" at a glance */
+      ctx.strokeStyle = '#eaf2ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -p.r * 0.55); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(p.t * SLOWMO_HAND_RATE) * p.r * 0.45, Math.sin(p.t * SLOWMO_HAND_RATE) * p.r * 0.45);
+      ctx.stroke();
+    } else {                                   // magnet
+      ctx.rotate(Math.sin(p.t * MAGNET_SWAY_RATE) * MAGNET_SWAY);
+      ctx.strokeStyle = '#c39bff';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(0, 1, p.r * 0.62, Math.PI, TAU); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-p.r * 0.62, 1); ctx.lineTo(-p.r * 0.62, p.r * 0.7);
+      ctx.moveTo(p.r * 0.62, 1); ctx.lineTo(p.r * 0.62, p.r * 0.7);
+      ctx.stroke();
+      ctx.strokeStyle = '#ff5d73';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-p.r * 0.62, p.r * 0.7); ctx.lineTo(-p.r * 0.62, p.r * MAGNET_TIP);
+      ctx.moveTo(p.r * 0.62, p.r * 0.7); ctx.lineTo(p.r * 0.62, p.r * MAGNET_TIP);
+      ctx.stroke();
+    }
+
+    /* magnet tether: shows which stars are being pulled */
+    if (p.pulled){
+      ctx.globalAlpha = MAGNET_TETHER_ALPHA;
+      ctx.strokeStyle = '#c39bff';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(g.ball.x - p.x, g.ball.y - p.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+
+  /* --------------------------------------------------------------- hazards */
+  function drawSaw(h){
+    ctx.save();
+    ctx.translate(h.x, h.cy);
+    ctx.rotate(h.rot);
+    ctx.beginPath();
+    const teeth = CFG.sawTeeth;
+    for (let i = 0; i < teeth * 2; i++){
+      const rr = i % 2 ? h.r * SAW_INNER : h.r;
+      const a = i / (teeth * 2) * TAU;
+      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#39415a'; ctx.fill();                 // HAZ-05 contrast pair
+    ctx.strokeStyle = '#ff5d73'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, h.r * SAW_HUB, 0, TAU); ctx.fillStyle = '#ff5d73'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, h.r * SAW_AXLE, 0, TAU); ctx.fillStyle = '#1a1e2b'; ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSpike(g, h){
+    if (h.warn > 0){
+      /* ceiling telegraph: marker + a drop line so the landing spot is obvious */
+      const k = 1 - h.warn / CFG.spikeWarnTime;
+      const pulse = 0.45 + 0.55 * Math.abs(Math.sin(k * CFG.spikePulseRate));
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      ctx.strokeStyle = 'rgba(255,93,115,0.55)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 8]);
+      ctx.beginPath();
+      ctx.moveTo(h.x, CEIL_MARK_Y);
+      ctx.lineTo(h.x, g.H - CFG.floorLineH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ff5d73';
+      ctx.beginPath();
+      ctx.moveTo(h.x, CEIL_MARK_Y + CFG.spikeMarkDrop * k);
+      ctx.lineTo(h.x - h.r * CFG.spikeMarkWidth, CFG.spikeMarkTop);
+      ctx.lineTo(h.x + h.r * CFG.spikeMarkWidth, CFG.spikeMarkTop);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+    ctx.save();
+    ctx.translate(h.x, h.cy);
+    ctx.beginPath();
+    ctx.moveTo(0, h.r * SPIKE_TAIL);
+    ctx.lineTo(-h.r * SPIKE_BODY, -h.r);
+    ctx.lineTo(h.r * SPIKE_BODY, -h.r);
+    ctx.closePath();
+    ctx.fillStyle = '#39415a'; ctx.fill();
+    ctx.strokeStyle = '#ff5d73'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, h.r * SPIKE_CORE_TAIL);
+    ctx.lineTo(-h.r * SPIKE_CORE_W, -h.r * 0.7);
+    ctx.lineTo(h.r * SPIKE_CORE_W, -h.r * 0.7);
+    ctx.closePath();
+    ctx.fillStyle = '#ff5d73'; ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSeeker(g, h){
+    if (h.warn > 0) return;             // the edge flash is the telegraph
+    const blink = h.life < CFG.seekerBlinkLife
+      ? (Math.sin(h.t * CFG.seekerBlinkRate) > 0 ? 1 : SEEKER_BLINK_DIM)
+      : 1;
+    ctx.save();
+    ctx.translate(h.x, h.cy);
+    ctx.globalAlpha = blink;
+    ctx.rotate(Math.sin(h.rot * SEEKER_ROTOR_TILT) * SEEKER_TILT_SWAY);
+    /* body */
+    ctx.beginPath();
+    ctx.moveTo(0, -h.r);
+    ctx.lineTo(h.r * SEEKER_W, 0);
+    ctx.lineTo(0, h.r * SEEKER_H);
+    ctx.lineTo(-h.r * SEEKER_W, 0);
+    ctx.closePath();
+    ctx.fillStyle = '#2a2140'; ctx.fill();               // HAZ-05: dark fill...
+    ctx.strokeStyle = '#c39bff'; ctx.lineWidth = 2; ctx.stroke();   // ...bright outline
+    /* rotors */
+    ctx.strokeStyle = 'rgba(195,155,255,0.7)';
+    ctx.lineWidth = 2;
+    const rr = h.r * 0.5, ra = h.rot * 3;
+    for (let i = 0; i < 2; i++){
+      const sx = i ? h.r * SEEKER_W : -h.r * SEEKER_W;
+      ctx.beginPath();
+      ctx.ellipse(sx, h.r * SEEKER_ROTOR_Y, rr, rr * 0.28, ra, 0, TAU);
+      ctx.stroke();
+    }
+    /* eye looks at the ball */
+    const ea = Math.atan2(g.ball.y - h.cy, g.ball.x - h.x);
+    ctx.fillStyle = '#ff5d73';
+    ctx.beginPath();
+    ctx.arc(Math.cos(ea) * SEEKER_EYE_OFF, Math.sin(ea) * SEEKER_EYE_OFF, h.r * SEEKER_EYE_R, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHazards(g){
+    for (let i = 0; i < g.hazards.length; i++){
+      const h = g.hazards[i];
+      if (h.kind === 'saw'){
+        if (h.warn > 0) continue;        // still off-screen; the edge flash speaks for it
+        drawSaw(h);
+      } else if (h.kind === 'spike'){
+        drawSpike(g, h);
+      } else {
+        drawSeeker(g, h);
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------ ball */
+  function drawTrail(g){
+    const b = g.ball;
+    const sp = Math.hypot(b.vx, b.vy);
+    if (sp < CFG.trailSpeedMin || g.reducedMotion) return;
+    const k = Math.min(1, (sp - CFG.trailSpeedMin) / CFG.trailSpeedRange);
+    for (let i = 0; i < b.trail.length; i++){
+      const t = b.trail[i], f = i / b.trail.length;
+      ctx.globalAlpha = f * CFG.trailAlpha * k;
+      ctx.fillStyle = '#ff8f8f';
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, b.r * f * TRAIL_R, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBall(g){
+    const b = g.ball;
+    /* PHYS-02/03: velocity-aligned stretch, capped, plus the decaying jelly wobble */
+    const sp = Math.hypot(b.vx, b.vy);
+    const stretch = Math.min(sp / CFG.stretchDivisor, CFG.stretchMax);
+    const wob = b.wAmp * Math.cos(b.wPhase);
+    const along = Math.max(CFG.scaleMin, 1 + stretch - wob);
+    const across = Math.max(CFG.scaleMin, 1 - stretch * 0.55 + wob * 0.8);
+
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.dispAng);
+    ctx.scale(along, across);
+    ctx.rotate(-b.dispAng);                 // PHYS-04: the face stays upright
+
+    const grad = ctx.createRadialGradient(-b.r * 0.35, -b.r * 0.4, b.r * 0.15, 0, 0, b.r * 1.05);
+    grad.addColorStop(0, '#ffd9d0');
+    grad.addColorStop(0.45, '#ff6b6b');
+    grad.addColorStop(1, '#c9375c');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(0, 0, b.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(20,10,20,0.35)';
+    ctx.lineWidth = g.heavyT > 0 ? 4 : 2;
+    ctx.stroke();
+
+    /* CORE-09: surface flecks rotate with `ang`, which is what makes spin legible */
+    ctx.save();
+    ctx.rotate(b.ang);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    for (let i = 0; i < CFG.flecks; i++){
+      const a = i / CFG.flecks * TAU;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * b.r * 0.68, Math.sin(a) * b.r * 0.68, b.r * 0.09, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    /* sheen */
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(b.r * SHEEN_X, b.r * SHEEN_Y, b.r * SHEEN_RX, b.r * SHEEN_RY, SHEEN_ROT, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    /* face (PHYS-05: blink + pupils tracking velocity) */
+    const eyeH = b.blink > 0 ? 0.12 : 1;
+    const px = clamp(b.vx * CFG.pupilXGain, -CFG.pupilXMax, CFG.pupilXMax);
+    const py = clamp(b.vy * CFG.pupilYGain, -CFG.pupilYMax, CFG.pupilYMax);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(-b.r * EYE_X, b.r * EYE_Y, b.r * EYE_RX, b.r * EYE_RY * eyeH, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(b.r * EYE_X, b.r * EYE_Y, b.r * EYE_RX, b.r * EYE_RY * eyeH, 0, 0, TAU); ctx.fill();
+    if (eyeH > 0.5){
+      ctx.fillStyle = '#252a3a';
+      ctx.beginPath(); ctx.arc(-b.r * EYE_X + px, b.r * EYE_Y + py, b.r * PUPIL_R, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(b.r * EYE_X + px, b.r * EYE_Y + py, b.r * PUPIL_R, 0, TAU); ctx.fill();
+    }
+    ctx.strokeStyle = '#252a3a';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, b.r * MOUTH_Y, b.r * MOUTH_R, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    drawAuras(g);
+  }
+
+  /* one distinct visual per live effect (guide rule 3) */
+  function drawAuras(g){
+    const b = g.ball;
+    if (g.shield){
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(g.totalT * CFG.shieldAuraSpin);
+      ctx.strokeStyle = 'rgba(78,205,196,0.9)';
+      ctx.lineWidth = CFG.shieldAuraWidth;
+      ctx.setLineDash([CFG.shieldAuraDash, CFG.shieldAuraGap]);
+      ctx.beginPath(); ctx.arc(0, 0, b.r + CFG.shieldAuraPad, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    if (g.slowmoT > 0){
+      const pulse = 1 + Math.sin(g.totalT * SLOWMO_BUBBLE_PULSE) * 0.05;
+      ctx.save();
+      ctx.globalAlpha = SLOWMO_BUBBLE_ALPHA;
+      ctx.fillStyle = '#7fb2ff';
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * SLOWMO_BUBBLE * pulse, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = '#7fb2ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * SLOWMO_BUBBLE * pulse, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+    if (g.magnetT > 0){
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(-g.totalT * 2);
+      ctx.strokeStyle = 'rgba(195,155,255,0.85)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 10]);
+      ctx.beginPath(); ctx.arc(0, 0, b.r + CFG.shieldAuraPad + MAGNET_AURA_PAD, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.14;
+      ctx.strokeStyle = '#c39bff';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(0, 0, CFG.magnetRadius, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+    if (g.heavyT > 0){
+      ctx.save();
+      ctx.strokeStyle = 'rgba(201,139,60,0.9)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r + HEAVY_AURA_PAD, 0, TAU); ctx.stroke();
+      ctx.fillStyle = '#c98b3c';
+      for (let i = 0; i < 2; i++){
+        const yy = b.r + 12 + i * 7 + ((g.totalT * 26) % 7);
+        ctx.beginPath();
+        ctx.moveTo(b.x - 7, yy - 4); ctx.lineTo(b.x, yy + 2); ctx.lineTo(b.x + 7, yy - 4);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  /* ----------------------------------------------------------------- frame */
+  function draw(g){
+    drawBackground(g);
+
+    ctx.save();
+    if (g.shake > CFG.shakeMin && !g.reducedMotion){
+      ctx.translate((Math.random() * 2 - 1) * g.shake, (Math.random() * 2 - 1) * g.shake);
+    }
+
+    drawDots(g);
+    drawEdgeWarns(g);
+    drawFloor(g);
+    drawRings(g);
+    for (let i = 0; i < g.pickups.length; i++) drawPickup(g, g.pickups[i]);
+    drawHazards(g);
+    if (!g.ball.dead){ drawTrail(g); drawBall(g); }
+    drawParticles(g);
+    drawTexts(g);
+
+    ctx.restore();
+
+    /* vignette + effect tints */
+    const vg = ctx.createRadialGradient(g.W / 2, g.H * 0.42, Math.min(g.W, g.H) * 0.38,
+                                        g.W / 2, g.H * 0.5, Math.max(g.W, g.H) * 0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.42)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, g.W, g.H);
+
+    if (g.slowmoT > 0){
+      ctx.fillStyle = 'rgba(90,150,255,' + SLOWMO_TINT_ALPHA + ')';
+      ctx.fillRect(0, 0, g.W, g.H);
+    }
+    if (g.heavyT > 0){
+      ctx.fillStyle = 'rgba(190,120,40,' + HEAVY_TINT_ALPHA + ')';
+      ctx.fillRect(0, 0, g.W, g.H);
+    }
+  }
+
+  return { ctx: ctx, resize: resize, draw: draw };
+}
+
+
+/* ===================== input.js ===================== */
+
+/* input.js — the only place that touches DOM events.
+ * Guide §6: "Never run logic in event handlers except recording intents", so every
+ * handler here just calls into flow.js / ball.js and lets the loop do the work.
+ * CORE-10: Pointer Events, identical for mouse, touch and pen.
+ */
+
+
+function onButton(e){
+  const t = e.target;
+  return !!(t && t.closest && t.closest('button'));
+}
+
+function bindInput(g){
+  DOM.canvas.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    Snd.ensure();                                     // AUD-02: inside the gesture
+    if (g.state === 'play') attemptBounce(g, e.clientX, e.clientY, false);
+    else if (g.state === 'over') tryRestart(g);
+  });
+
+  /* long-press must not open a callout / select text on mobile (INPUT-01) */
+  DOM.canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+
+  DOM.startBtn.addEventListener('click', function(){ startGame(g); });
+  DOM.retryBtn.addEventListener('click', function(){ startGame(g); });
+  DOM.resumeBtn.addEventListener('click', function(){ resumeGame(g); });
+  DOM.pauseQuitBtn.addEventListener('click', function(){ quitToMenu(g); });
+  DOM.pauseBtn.addEventListener('click', function(){ togglePause(g); });
+  DOM.muteBtn.addEventListener('click', function(){ Snd.ensure(); toggleMute(); });
+
+  window.addEventListener('keydown', function(e){
+    /* A11Y-02: if a button has focus, Space/Enter belongs to that button */
+    if (e.code === 'Space' || e.code === 'Enter' || e.key === ' '){
+      if (onButton(e)) return;
+      e.preventDefault();
+      Snd.ensure();
+      if (g.state === 'menu') startGame(g);
+      else if (g.state === 'paused') resumeGame(g);
+      else tryRestart(g);                              // UI-04 lock is checked inside
+      return;
+    }
+    if (e.code === 'KeyP' || e.code === 'Escape'){     // UI-06
+      e.preventDefault();
+      Snd.ensure();
+      togglePause(g);
+      return;
+    }
+    if (e.code === 'KeyM' || e.key === 'm' || e.key === 'M'){   // AUD-05
+      Snd.ensure();
+      toggleMute();
+    }
+  });
+
+  /* UI-06: auto-pause when the tab is hidden. Resume stays a deliberate act, so
+   * returning to the tab can never drop you into a death you could not see. */
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) pauseGame(g, 'tab');
+  });
+}
+
+
+/* ===================== game.js ===================== */
+
+/* game.js — orchestration: the loop, the frame budget, and boot.
+ * Guide §6: one requestAnimationFrame, dt clamped in exactly one place (here),
+ * then update -> HUD -> render.
+ */
+
+
+const G = createGame();
+let R = null;
+let last = 0;
+const DEBUG = debugMode();
+
+/* ------------------------------------------------------------- attract mode */
+/* UI-02: a live autopilot ball on the menu — no sound, no score, no hazards. */
+function attractMode(g, physDt){
+  const b = g.ball;
+  if (b.vy > 0 && b.y > g.H * CFG.autoTriggerFrac){
+    const push = clamp((g.W / 2 - b.x) * CFG.autoPushGain, -CFG.autoPushMax, CFG.autoPushMax);
+    attemptBounce(g, b.x - push * CFG.autoPushOffset, b.y + b.r * 2, true);
+  }
+  if (b.y + b.r >= g.H){
+    b.y = g.H - b.r;
+    b.vy = -CFG.bouncePower * CFG.autoFloorPowerMul;
+    b.wAmp = CFG.autoFloorWobble;
+  }
+}
+
+/* Timed pickup effects. Every one of them is capped in CFG (pillar 4). */
+function tickEffects(g, dt){
+  if (g.slowmoT > 0){
+    g.slowmoT -= dt;
+    if (g.slowmoT <= 0){ g.slowmoT = 0; Snd.slowmoEnd(); }
+  }
+  if (g.magnetT > 0) g.magnetT = Math.max(0, g.magnetT - dt);
+  if (g.heavyT > 0) g.heavyT = Math.max(0, g.heavyT - dt);
+}
+
+/* ------------------------------------------------------------------- update */
+function update(g, dtReal){
+  updateFlow(g, dtReal);
+  if (g.state === 'paused') return;              // UI-06: frozen, state fully intact
+
+  g.totalT += dtReal;
+
+  /* Phase 2 hit-stop: physics freezes for a few frames, the wobble keeps going.
+   * Only during play — freezing the menu demo would look like a hang. */
+  const hitStopActive = g.hitStop > 0 && g.state === 'play';
+  if (g.hitStop > 0) g.hitStop = Math.max(0, g.hitStop - dtReal);
+
+  const fxDt = dtReal * (hitStopActive ? 1 : g.timeScale);
+  const physDt = hitStopActive ? 0 : dtReal * g.timeScale;
+
+  updateFx(g, fxDt);
+  if (g.state === 'over') return;                // tableau behind the panel, as in the prototype
+
+  const playing = g.state === 'play';
+  if (playing){
+    g.elapsed += physDt;
+    tickEffects(g, physDt);
+  }
+
+  const gravity = gravityNow(g);
+
+  /* A11Y-01: with reduced motion the menu demo ball parks itself instead of
+   * bouncing forever. During play, reduced motion only strips decoration. */
+  const parked = g.state === 'menu' && g.reducedMotion;
+  if (parked){
+    g.ball.vx = 0; g.ball.vy = 0;
+  } else if (g.state === 'menu'){
+    attractMode(g, physDt);
+  }
+
+  if (!parked && physDt > 0) updateBall(g, physDt, gravity);
+
+  if (playing){
+    if (ballHitFloor(g)){ die(g); return; }      // CORE-04
+    if (g.combo > 0){
+      g.comboTimer -= physDt;
+      if (g.comboTimer <= 0) g.combo = 0;        // SCORE-02 expiry
+    }
+    updateSpawners(g, physDt);
+  }
+
+  if (physDt > 0){
+    updateHazards(g, physDt);
+    updatePickups(g, physDt);
+  }
+}
+
+/* One frame of the whole game. dt is already clamped by advance(). */
+function step(dt){
+  update(G, dt);
+  updateHud(G);
+  if (R) R.draw(G);
+}
+
+/* -------------------------------------------------------------------- loop */
+/* PHYS-01: the dt clamp lives here and nowhere else (guide §6 / ROADMAP §3). */
+function advance(now){
+  const dt = Math.min(Math.max((now - last) / 1000, 0), CFG.fpsFloorDt);
+  last = now;
+  step(dt);
+  return dt;
+}
+
+function frame(now){
+  if (!DEBUG) requestAnimationFrame(frame);
+  advance(now);
+}
+
+/* -------------------------------------------------------------------- boot */
+function detectReducedMotion(){
+  try {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  } catch (e){ return false; }
+}
+
+function debugMode(){
+  try {
+    return /[?&]debug/.test(window.location.search) || /(^|[#&])debug/.test(window.location.hash);
+  } catch (e){ return false; }
+}
+
+/* COMPAT-01: a visible failure beats a silent black screen. */
+function installErrorSurface(){
+  window.addEventListener('error', function(ev){
+    showFatal((ev && ev.message) || 'unknown error');
+  });
+}
+
+function onResize(){ if (R) R.resize(G); }
+
+function newTestGame(w, h){
+  const g = createGame();
+  g.W = w; g.H = h;
+  g.reducedMotion = G.reducedMotion;
+  resetRun(g);
+  return g;
+}
+
+function boot(){
+  try {
+    LS.probe();
+    G.reducedMotion = detectReducedMotion();
+    R = createRenderer(DOM.canvas);
+    R.resize(G);
+    loadPersisted(G);
+    resetHudCache();
+    resetRun(G);
+    showMenu();
+    bindInput(G);
+    window.addEventListener('resize', onResize);
+    installErrorSurface();
+    updateHud(G);
+    last = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+    if (DEBUG){
+      /* Test seam: index.html?debug exposes the internals and does NOT start the
+       * loop, so a harness can drive deterministic fixed-dt steps. The shipped
+       * page defines no globals at all. */
+      window.__KEEPUP__ = {
+        CFG: CFG, KEYS: KEYS, G: G, LS: LS, Snd: Snd, renderer: R,
+        step: step, update: update, advance: advance, frame: frame, newGame: newTestGame,
+        fx: {
+          burst: burst, addRing: addRing, addText: addText, addScore: addScore,
+          shakeBy: shakeBy, addEdgeWarn: addEdgeWarn, updateFx: updateFx,
+        },
+        startGame: startGame, die: die, tryRestart: tryRestart, tickEffects: tickEffects,
+        pauseGame: pauseGame, resumeGame: resumeGame, togglePause: togglePause,
+        quitToMenu: quitToMenu, toggleMute: toggleMute, updateFlow: updateFlow,
+        attemptBounce: attemptBounce, gravityNow: gravityNow, resetRun: resetRun,
+        spawnSaw: spawnSaw, spawnSpike: spawnSpike, spawnSeeker: spawnSeeker,
+        spawnPickup: spawnPickup, updateSpawners: updateSpawners,
+        updateHazards: updateHazards, updatePickups: updatePickups,
+        collectPickup: collectPickup, updateBall: updateBall, updateHud: updateHud,
+        showFatal: showFatal,
+      };
+      R.draw(G);
+    } else {
+      requestAnimationFrame(frame);
+    }
+  } catch (err){
+    showFatal(err && err.message ? err.message : String(err));
+  }
+}
+
+boot();
+
+
+})();
+</script>
+</body>
+</html>
