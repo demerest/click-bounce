@@ -257,7 +257,10 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
       <div class="stat"><b id="finalBest">0</b><span>BEST</span></div>
     </div>
     <button id="retryBtn" class="big" type="button">BOUNCE AGAIN</button>
-    <button id="shareBtn" class="ghost" type="button">COPY SCORE</button>
+    <div class="modes">
+      <button id="shareBtn" class="ghost" type="button">COPY SCORE</button>
+      <button id="menuBtn" class="ghost" type="button">MAIN MENU</button>
+    </div>
     <p class="hint">space / enter to retry</p>
   </div>
 </div>
@@ -760,6 +763,7 @@ const DOM = {
   resumeBtn: byId('resumeBtn'),
   pauseQuitBtn: byId('pauseQuitBtn'),
   retryBtn: byId('retryBtn'),
+  menuBtn: byId('menuBtn'),
   scoreUnit: byId('scoreUnit'),
   overEyebrow: byId('overEyebrow'),
   toasts: byId('toasts'),
@@ -1832,11 +1836,12 @@ function updateFlow(g, dtReal){
   }
 }
 
-/* UI-04: locked for restartLock after death so a panic click cannot skip the panel. */
+/* UI-04: locked for restartLock after death so a panic click cannot skip the panel.
+ * Retry repeats the run you were in - same mode, same daily seed. */
 function tryRestart(g){
   if (g.state !== 'over') return false;
   if (nowMs() - g.overAt < CFG.restartLock * 1000) return false;
-  startGame(g);
+  startRun(g, g.mode, !!g.daily);
   return true;
 }
 
@@ -3196,7 +3201,12 @@ function bindInput(g){
   DOM.canvas.addEventListener('pointerdown', function(e){
     e.preventDefault();
     Snd.ensure();                                     // AUD-02: inside the gesture
-    if (g.state === 'play') attemptBounce(g, e.clientX, e.clientY, false);
+    if (g.state === 'play'){
+      /* Climb mode scrolls the world: pointer coords are screen space, the sim
+       * lives in world space (bugfix: clicks used to land camY pixels off). */
+      const camY = g.mode === 'climb' && g.climb ? g.climb.camY : 0;
+      attemptBounce(g, e.clientX, e.clientY + camY, false);
+    }
     else if (g.state === 'over') tryRestart(g);
   });
 
@@ -3207,7 +3217,8 @@ function bindInput(g){
   DOM.climbBtn.addEventListener('click', function(){ startClimb(g); });
   DOM.dailyBtn.addEventListener('click', function(){ startDaily(g); });
   DOM.shareBtn.addEventListener('click', function(){ copyShare(shareText(g)); });
-  DOM.retryBtn.addEventListener('click', function(){ startGame(g); });
+  DOM.retryBtn.addEventListener('click', function(){ startRun(g, g.mode, !!g.daily); });
+  DOM.menuBtn.addEventListener('click', function(){ quitToMenu(g); });
   DOM.resumeBtn.addEventListener('click', function(){ resumeGame(g); });
   DOM.pauseQuitBtn.addEventListener('click', function(){ quitToMenu(g); });
   DOM.pauseBtn.addEventListener('click', function(){ togglePause(g); });

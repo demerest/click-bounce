@@ -27,6 +27,7 @@ export const DOM = {
   resumeBtn: byId('resumeBtn'),
   pauseQuitBtn: byId('pauseQuitBtn'),
   retryBtn: byId('retryBtn'),
+  menuBtn: byId('menuBtn'),
   scoreUnit: byId('scoreUnit'),
   overEyebrow: byId('overEyebrow'),
   toasts: byId('toasts'),

@@ -22,7 +22,12 @@ export function bindInput(g){
   DOM.canvas.addEventListener('pointerdown', function(e){
     e.preventDefault();
     Snd.ensure();                                     // AUD-02: inside the gesture
-    if (g.state === 'play') attemptBounce(g, e.clientX, e.clientY, false);
+    if (g.state === 'play'){
+      /* Climb mode scrolls the world: pointer coords are screen space, the sim
+       * lives in world space (bugfix: clicks used to land camY pixels off). */
+      const camY = g.mode === 'climb' && g.climb ? g.climb.camY : 0;
+      attemptBounce(g, e.clientX, e.clientY + camY, false);
+    }
     else if (g.state === 'over') tryRestart(g);
   });
 
@@ -33,7 +38,8 @@ export function bindInput(g){
   DOM.climbBtn.addEventListener('click', function(){ startClimb(g); });
   DOM.dailyBtn.addEventListener('click', function(){ startDaily(g); });
   DOM.shareBtn.addEventListener('click', function(){ copyShare(shareText(g)); });
-  DOM.retryBtn.addEventListener('click', function(){ startGame(g); });
+  DOM.retryBtn.addEventListener('click', function(){ startRun(g, g.mode, !!g.daily); });
+  DOM.menuBtn.addEventListener('click', function(){ quitToMenu(g); });
   DOM.resumeBtn.addEventListener('click', function(){ resumeGame(g); });
   DOM.pauseQuitBtn.addEventListener('click', function(){ quitToMenu(g); });
   DOM.pauseBtn.addEventListener('click', function(){ togglePause(g); });

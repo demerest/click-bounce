@@ -1236,6 +1236,64 @@ async function main(){
   ok(G.climb.bands.length > 0 && G.mode === 'climb', 'climb scene composed');
   ok(!fatal(), 'no runtime error after the climb scene', fatal());
 
+  /* ============================ 41. regressions reported from playtesting */
+  sec('41. regressions: retry keeps mode, climb aim, menu exit');
+  function gameOverNow(gg){
+    gg.overAt = win.performance.now() - 100000;      // skip the UI-04 lock
+    K.updateFlow(gg, 1); K.updateFlow(gg, 0);
+    return gg.state;
+  }
+  g = K.newGame(800, 600); K.startClimb(g);
+  g.ball.y = g.climb.lavaY; K.climbUpdate(g, DT);
+  eq(gameOverNow(g), 'over', 'a climb run reaches game over');
+  ok(K.tryRestart(g), 'retry is allowed once the lock expires');
+  eq(g.mode, 'climb', 'retry stays in climb mode (bug 1)');
+  ok(!!g.climb, 'retry rebuilds the climb state');
+
+  g = K.newGame(800, 600); K.startDaily(g);
+  g.ball.y = g.H + 10; K.update(g, DT);
+  gameOverNow(g);
+  K.tryRestart(g);
+  ok(!!g.daily, 'retry keeps the daily challenge (bug 1)');
+  eq(g.mode, 'classic', 'a daily retry stays a classic run');
+
+  g = K.newGame(800, 600); K.startGame(g);
+  g.ball.y = g.H + 10; K.update(g, DT);
+  gameOverNow(g);
+  K.tryRestart(g);
+  eq(g.mode, 'classic', 'a classic retry stays classic');
+  eq(g.daily, null, 'a classic retry is not silently a daily');
+
+  /* bug 2: pointer coords must be converted from screen space to world space */
+  K.startClimb(G);
+  G.ball.x = 200; G.ball.y = -40; G.ball.vx = 0; G.ball.vy = 0;
+  G.climb.top = Math.min(G.climb.top, G.ball.y);
+  G.climb.camY = G.climb.top - G.H * CFG.climbCamLead;
+  const screenY = G.ball.y - G.climb.camY;          // where the ball is actually drawn
+  ok(screenY > 0 && screenY < G.H, 'the ball is inside the viewport', screenY);
+  G.lastBounceAt = G.totalT - 1;
+  const cbBefore = G.bounces;
+  doc.getElementById('game').dispatchEvent(new win.PointerEvent('pointerdown',
+    { clientX: 200, clientY: screenY + 40, bubbles: true, cancelable: true, pointerId: 21, isPrimary: true }));
+  eq(G.bounces, cbBefore + 1, 'a click where the ball is drawn bounces it (bug 2)');
+  G.ball.x = 200; G.ball.y = -40; G.ball.vx = 0; G.ball.vy = 0;
+  G.lastBounceAt = G.totalT - 1;
+  const cbAfter = G.bounces;
+  doc.getElementById('game').dispatchEvent(new win.PointerEvent('pointerdown',
+    { clientX: 200, clientY: G.ball.y + 40, bubbles: true, cancelable: true, pointerId: 22, isPrimary: true }));
+  eq(G.bounces, cbAfter, 'the raw world coordinate misses, proving the offset is applied');
+
+  /* bug 3: an exit back to the menu from the game-over panel */
+  ok(!!doc.getElementById('menuBtn'), 'the game-over panel offers MAIN MENU');
+  K.startGame(G);
+  G.ball.y = G.H + 10; K.update(G, DT);
+  eq(gameOverNow(G), 'over', 'game over reached for the menu-exit test');
+  doc.getElementById('menuBtn').click();
+  eq(G.state, 'menu', 'MAIN MENU leaves the game-over panel (bug 3)');
+  eq(G.mode, 'classic', 'returning to the menu resets the mode');
+  ok(!doc.getElementById('menu').classList.contains('hidden'), 'the menu overlay is shown');
+  ok(!fatal(), 'no runtime error after the regression section', fatal());
+
   /* ------------------------------------------------------------- teardown */
   ok(!fatal(), 'no runtime error surfaced during the whole run', fatal());
   render();

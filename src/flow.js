@@ -96,11 +96,12 @@ export function updateFlow(g, dtReal){
   }
 }
 
-/* UI-04: locked for restartLock after death so a panic click cannot skip the panel. */
+/* UI-04: locked for restartLock after death so a panic click cannot skip the panel.
+ * Retry repeats the run you were in - same mode, same daily seed. */
 export function tryRestart(g){
   if (g.state !== 'over') return false;
   if (nowMs() - g.overAt < CFG.restartLock * 1000) return false;
-  startGame(g);
+  startRun(g, g.mode, !!g.daily);
   return true;
 }
 
