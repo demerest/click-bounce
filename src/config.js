@@ -321,8 +321,8 @@ export const CFG = {
   climbSealGap: 46,             // max hole between saws: below the ball diameter, so sealed
   climbSawsPerBandMax: 24,      // pillar 4: enough to seal a ~2500px-wide row
   climbBandAhead: 1.5,          // screens of bands generated above the viewport
-  climbBandCap: 5,              // pillar 4: live bands kept in memory
-  climbHazardCap: 120,          // pillar 4: bandCap * sawsPerBandMax, the hard ceiling
+  climbBandCap: 12,             // pillar 4: covers a 1080p-tall view plus the ahead window
+  climbHazardCap: 288,          // pillar 4: bandCap * sawsPerBandMax, the hard ceiling
   climbStarDrop: 46,            // star sits this far above its band line
   climbStarMeters: 5,           // a climb star is worth this many metres
   climbShieldEvery: 3,          // every Nth band also hides a shield in its corridor

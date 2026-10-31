@@ -118,9 +118,12 @@ export function climbEnsureBands(g){
 export function climbCullBands(g){
   const c = g.climb;
   const below = c.camY + g.H + CFG.climbBandSpacing;
-  while (c.bands.length && (c.bands[0].y > below || c.bands.length > CFG.climbBandCap)){
-    c.bands.shift();
-  }
+  /* bands that fell out of the world go first... */
+  while (c.bands.length && c.bands[0].y > below) c.bands.shift();
+  /* ...and only if we are still over the memory cap do we drop the FARTHEST band
+   * above the view. Never the lowest one: that is the band the player is at, and
+   * evicting it made saws and stars vanish on tall windows (playtest bug). */
+  while (c.bands.length > CFG.climbBandCap) c.bands.pop();
 }
 
 export function climbInit(g){

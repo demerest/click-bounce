@@ -1223,7 +1223,10 @@ async function main(){
   K.quitToMenu(G);
 
   /* ======================================= 40. climb scene for eyeballing */
-  sec('40. climb scene (eyeball the first iframe)');
+  sec('40. climb scene at a tall window (eyeball the first iframe)');
+  f.style.width = '800px'; f.style.height = '900px';
+  await sleep(150);
+  win.dispatchEvent(new win.Event('resize'));
   K.startClimb(G);
   G.ball.x = G.climb.bands[0].gapX;
   G.ball.y = G.climb.baseY - 160; G.ball.vy = -320;
@@ -1363,6 +1366,42 @@ async function main(){
   let liveSaws = 0;
   for (let bi = 0; bi < g2.climb.bands.length; bi++) liveSaws += g2.climb.bands[bi].saws.length;
   ok(liveSaws <= CFG.climbHazardCap, 'live band saws stay under the cap (pillar 4)', liveSaws);
+
+  /* The vanishing-saws bug: on tall windows the band cap evicted the band the
+   * player was at. Walk a climb at several heights and demand that a saw band
+   * (with its star) is on screen at every step. */
+  sec('43. a saw band is always on screen while climbing (tall windows)');
+  const heights = [600, 900, 1080];
+  for (let hi = 0; hi < heights.length; hi++){
+    const H = heights[hi];
+    g2 = K.newGame(800, H); K.startClimb(g2);
+    let empty = 0, starless = 0, steps = 0;
+    for (let step = 0; step < 40; step++){
+      g2.ball.y -= 150; g2.ball.vy = 0;                 // a strong upward climb
+      let near = null, bestD = Infinity;
+      for (let bi = 0; bi < g2.climb.bands.length; bi++){
+        const d = Math.abs(g2.climb.bands[bi].y - g2.ball.y);
+        if (d < bestD){ bestD = d; near = g2.climb.bands[bi]; }
+      }
+      if (near) g2.ball.x = near.gapX;                  // ride the corridor, stay alive
+      K.climbUpdate(g2, DT);
+      if (g2.state !== 'play') break;
+      steps++;
+      let saws = 0, stars = 0;
+      for (let bi = 0; bi < g2.climb.bands.length; bi++){
+        const band = g2.climb.bands[bi];
+        if (band.y >= g2.climb.camY && band.y <= g2.climb.camY + H){
+          saws += band.saws.length;
+          for (let it = 0; it < band.items.length; it++) if (band.items[it].alive) stars++;
+        }
+      }
+      if (saws === 0) empty++;
+      if (stars === 0) starless++;
+    }
+    ok(steps >= 30, 'H=' + H + ': the walk covered enough bands', steps);
+    ok(empty === 0, 'H=' + H + ': saws are on screen at every step of the climb', empty + ' empty samples');
+    ok(starless === 0, 'H=' + H + ': stars are on screen at every step of the climb', starless + ' starless samples');
+  }
   ok(!fatal(), 'no runtime error after mode-identity checks', fatal());
 
   /* ------------------------------------------------------------- teardown */
