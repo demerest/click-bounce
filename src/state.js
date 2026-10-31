@@ -2,7 +2,7 @@
  * ROADMAP §3: "Pass state down; avoid a second global mutable mess."
  */
 
-import { CFG } from './config.js';
+import { CFG, KEYS } from './config.js';
 import { rand } from './math.js';
 
 export function makeBall(){
@@ -26,6 +26,13 @@ export function createGame(){
     pausedBy: null,        // 'user' | 'tab'
     reducedMotion: false,  // A11Y-01
 
+    /* mode (Phase 5): 'classic' | 'climb'; daily holds seeded mods or null */
+    mode: 'classic',
+    daily: null,
+    bestKey: KEYS.best,
+    skin: null,
+    climb: null,
+
     /* view */
     W: 0, H: 0, dpr: 1,
 
@@ -42,6 +49,7 @@ export function createGame(){
     /* scoring (SCORE-*) */
     score: 0, best: 0, newBest: false,
     combo: 0, comboTimer: 0, maxCombo: 0, bounces: 0,
+    starsRun: 0, shieldSaves: 0,      // Phase 4 achievement counters
 
     /* active effects */
     shield: false,    // PICK-02
@@ -88,17 +96,21 @@ export function resetBall(g){
 
 export function resetRun(g){
   g.score = 0; g.combo = 0; g.comboTimer = 0; g.maxCombo = 0; g.bounces = 0;
+  g.starsRun = 0; g.shieldSaves = 0;
   g.newBest = false;
   g.elapsed = 0;
   g.lastBounceAt = g.totalT - 9;      // first bounce of a run is always full charge
   g.timeScale = 1; g.deathT = 0; g.panelShown = false; g.hitStop = 0;
   g.shake = 0; g.dotKick = 0;
   g.shield = false; g.slowmoT = 0; g.magnetT = 0; g.heavyT = 0;
+  g.climb = null;
 
   g.hazards.length = 0; g.pickups.length = 0;
   g.particles.length = 0; g.rings.length = 0; g.texts.length = 0; g.edgeWarns.length = 0;
 
-  g.sawTimer = CFG.hazardDelay;                  // DIFF-02 grace period
+  /* the daily seed, when present, replaces the classic pacing constants */
+  const d = g.daily;
+  g.sawTimer = d ? d.grace : CFG.hazardDelay;          // DIFF-02 grace period
   g.spikeTimer = CFG.spikeFirstAfterGate;
   g.seekerTimer = CFG.seekerFirstAfterGate;
   g.starTimer = CFG.starFirst;
@@ -110,9 +122,10 @@ export function resetRun(g){
   resetBall(g);
 }
 
-/* DIFF-01 ramp, then pickup multipliers, then the hard cap (DIFF-05). */
+/* DIFF-01 ramp, then daily + pickup multipliers, then the hard cap (DIFF-05). */
 export function gravityNow(g){
   let gr = Math.min(CFG.gravityMax, CFG.gravityBase + g.elapsed * CFG.gravityRamp);
+  if (g.daily) gr *= g.daily.gravityMul;
   if (g.slowmoT > 0) gr *= CFG.slowmoGravityMul;
   if (g.heavyT > 0) gr *= CFG.heavyGravityMul;
   return Math.min(gr, CFG.gravityHardCap);

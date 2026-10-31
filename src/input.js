@@ -5,9 +5,13 @@
  */
 
 import { DOM } from './dom.js';
+import { KEYS } from './config.js';
+import { LS } from './storage.js';
 import { Snd } from './audio.js';
 import { attemptBounce } from './ball.js';
-import { pauseGame, quitToMenu, resumeGame, startGame, toggleMute, togglePause, tryRestart } from './flow.js';
+import { skinChoose } from './skins.js';
+import { copyShare, renderMeta } from './hud.js';
+import { pauseGame, quitToMenu, resumeGame, shareText, startClimb, startDaily, startGame, toggleMute, togglePause, tryRestart } from './flow.js';
 
 function onButton(e){
   const t = e.target;
@@ -26,11 +30,27 @@ export function bindInput(g){
   DOM.canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
 
   DOM.startBtn.addEventListener('click', function(){ startGame(g); });
+  DOM.climbBtn.addEventListener('click', function(){ startClimb(g); });
+  DOM.dailyBtn.addEventListener('click', function(){ startDaily(g); });
+  DOM.shareBtn.addEventListener('click', function(){ copyShare(shareText(g)); });
   DOM.retryBtn.addEventListener('click', function(){ startGame(g); });
   DOM.resumeBtn.addEventListener('click', function(){ resumeGame(g); });
   DOM.pauseQuitBtn.addEventListener('click', function(){ quitToMenu(g); });
   DOM.pauseBtn.addEventListener('click', function(){ togglePause(g); });
   DOM.muteBtn.addEventListener('click', function(){ Snd.ensure(); toggleMute(); });
+
+  /* Phase 4 skins: palette swaps, gated by best-score thresholds */
+  DOM.skins.addEventListener('click', function(e){
+    const btn = e.target && e.target.closest ? e.target.closest('.swatch') : null;
+    if (!btn) return;
+    const best = Math.max(0, Math.floor(LS.num(KEYS.best, 0)));
+    const skin = skinChoose(btn.getAttribute('data-skin'), best);
+    if (skin){
+      g.skin = skin;
+      renderMeta(g);
+      Snd.copy();
+    }
+  });
 
   window.addEventListener('keydown', function(e){
     /* A11Y-02: if a button has focus, Space/Enter belongs to that button */
@@ -48,6 +68,10 @@ export function bindInput(g){
       Snd.ensure();
       togglePause(g);
       return;
+    }
+    if (g.state === 'menu' && !onButton(e)){
+      if (e.code === 'KeyC'){ Snd.ensure(); startClimb(g); return; }
+      if (e.code === 'KeyD'){ Snd.ensure(); startDaily(g); return; }
     }
     if (e.code === 'KeyM' || e.key === 'm' || e.key === 'M'){   // AUD-05
       Snd.ensure();

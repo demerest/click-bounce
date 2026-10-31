@@ -130,4 +130,9 @@ export const Snd = {
   slowmoEnd(){ this.tone(392, 523, 0.12, 'sine', 0.14); },
   magnet(){ this.tone(523, 784, 0.14, 'triangle', 0.3); this.tone(659, 988, 0.12, 'sine', 0.16, 0.06); },
   heavy(){ this.tone(180, 120, 0.24, 'sawtooth', 0.3); this.noise(0.16, 0.18); this.tone(1046, 1046, 0.08, 'sine', 0.2, 0.02); },
+
+  /* Phase 4 */
+  achievement(){ this.tone(659, 659, 0.09, 'triangle', 0.32); this.tone(880, 880, 0.09, 'triangle', 0.3, 0.09); this.tone(1318, 1318, 0.16, 'sine', 0.26, 0.18); },
+  copy(){ this.tone(988, 1480, 0.07, 'sine', 0.22); },
+  climb(){ this.tone(262, 392, 0.12, 'triangle', 0.3); this.tone(392, 523, 0.14, 'triangle', 0.26, 0.1); },
 };

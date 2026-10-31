@@ -69,10 +69,13 @@ try {
   Write-Host ''
   Write-Host '== integration harness ==' -ForegroundColor Cyan
   $out = Join-Path $tmp 'keepup-verify-out.html'
+  # a fresh profile per run: a reused one carries localStorage (best scores)
+  # from the previous run and would corrupt NEW BEST assertions.
+  $prof = "$tmp\keepup-verify-prof-" + [DateTime]::Now.ToString('yyyyMMddHHmmssfff')
   $chromeArgs = @(
     '--headless=new','--disable-gpu','--no-first-run','--no-sandbox','--mute-audio',
     '--autoplay-policy=no-user-gesture-required','--window-size=1600,1200',
-    "--user-data-dir=$tmp\keepup-verify-prof",
+    "--user-data-dir=$prof",
     '--virtual-time-budget=180000','--timeout=240000',
     '--dump-dom',"http://127.0.0.1:$Port/tests/harness.html"
   )

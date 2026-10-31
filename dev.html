@@ -23,9 +23,13 @@ window.addEventListener('error', function(e){
 <canvas id="game" aria-label="Gameplay surface. Click or tap near the ball to bounce it away from your pointer."></canvas>
 
 <div id="hud">
-  <div id="scoreBox"><span id="score">0</span><div id="best">BEST 0</div></div>
+  <div id="scoreBox"><span id="score">0</span><span id="scoreUnit" class="unit hidden">m</span><div id="best">BEST 0</div></div>
   <div id="comboBox"><div id="combo">&times;2</div><div id="comboBarWrap"><div id="comboBar"></div></div></div>
   <div id="effects" aria-hidden="true"></div>
+</div>
+
+<div id="toasts" aria-live="polite">
+  <div id="toast" class="toast"><b id="toastName"></b><span id="toastDesc"></span></div>
 </div>
 
 <div id="sysBtns">
@@ -39,6 +43,15 @@ window.addEventListener('error', function(e){
     <h1 id="menuTitle">KEEP <em>IT&nbsp;UP</em></h1>
     <p class="tag">The jelly ball knows only one word: <b>boing</b>. Keep it off the floor.</p>
     <div class="demo" aria-hidden="true"><div class="demo-ball"></div><div class="demo-shadow"></div></div>
+    <p id="dailyStrip" class="daily"></p>
+    <div id="skins" class="swatches" role="group" aria-label="Ball skins"></div>
+    <div id="badges" class="badges" role="group" aria-label="Achievements"></div>
+    <button id="startBtn" class="big" type="button">START BOUNCING</button>
+    <div class="modes">
+      <button id="climbBtn" class="ghost" type="button">CLIMB MODE (C)</button>
+      <button id="dailyBtn" class="ghost" type="button">DAILY RUN (D)</button>
+    </div>
+    <p class="hint">space / enter also works &middot; M mutes &middot; P pauses</p>
     <ul class="how">
       <li><b>Click / tap near the ball</b> &mdash; it gets pushed <b>away</b> from your finger, so you can steer it.</li>
       <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing &mdash; and chain <b>combos</b> (max &times;10).</li>
@@ -48,9 +61,9 @@ window.addEventListener('error', function(e){
       <li><b class="c-bronze">dark gold star</b> = +200, but you get <b>heavy</b> for 8s. Greed is a choice.</li>
       <li>Watch the edges: <b class="c-hot">red flash</b> = saw incoming, <b class="c-hot">ceiling marker</b> = spike dropping where you <i>were</i>. After 60s a <b>drone</b> hunts you &mdash; it dies on walls.</li>
       <li>Skim a saw for a <b>near-miss bonus</b>. <b>P</b> or <b>Esc</b> pauses.</li>
+      <li><b>Climb mode</b>: race upward for metres while lava rises; follow the <b class="c-teal">dashed corridor</b> through each saw band.</li>
+      <li><b>Badges</b> for &times;10, 3 stars, 120s and a shield save &middot; <b>skins</b> unlock at best-score thresholds &middot; the <b>daily</b> remixes the physics each day.</li>
     </ul>
-    <button id="startBtn" class="big" type="button">START BOUNCING</button>
-    <p class="hint">space / enter also works &middot; M mutes &middot; P pauses</p>
   </div>
 </div>
 
@@ -67,7 +80,7 @@ window.addEventListener('error', function(e){
 
 <div id="over" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="overTitle">
   <div class="panel">
-    <p class="eyebrow">GRAVITY WINS</p>
+    <p class="eyebrow" id="overEyebrow">GRAVITY WINS</p>
     <h1 id="overTitle">SPLAT<em>.</em></h1>
     <div id="finalScore"><span id="finalScoreVal">0</span><span id="newBest">NEW BEST!</span></div>
     <div class="stats">
@@ -77,6 +90,7 @@ window.addEventListener('error', function(e){
       <div class="stat"><b id="finalBest">0</b><span>BEST</span></div>
     </div>
     <button id="retryBtn" class="big" type="button">BOUNCE AGAIN</button>
+    <button id="shareBtn" class="ghost" type="button">COPY SCORE</button>
     <p class="hint">space / enter to retry</p>
   </div>
 </div>

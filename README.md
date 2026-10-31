@@ -33,6 +33,20 @@ gravity for 8 s. Hazards: **saws** cross the screen, **spikes** telegraph on the
 ceiling for 1 s then drop where you *were*, and after 60 s a **drone** hunts you
 with a capped turn rate and dies on walls. Skim a hazard for a +15 near-miss.
 
+### Modes and meta
+
+- **Climb mode** (`C` from the menu): race upward for metres while lava rises.
+  Each 300 px band is a wall of saws with a *validated* passable corridor (dashed
+  teal channel); stars in a corridor pay +5 m, every third band hides a shield.
+- **Daily run** (`D`): today's date seeds bounded multipliers for gravity, saw
+  pace/speed, grace and star rate. Today's best is remembered.
+- **Badges**: ×10 combo · 3 stars in a run · survive 120 s · a shield save.
+  Earned badges persist and announce themselves with a CSS toast.
+- **Skins**: four palette swaps (no images), unlocked at best-score thresholds
+  0 / 600 / 1800 / 4000; pick one from the menu swatches.
+- **Copy score** on the game-over panel puts a plain-text result on the
+  clipboard — no network involved.
+
 ## Develop it
 
 There is no node, deno, bun or python on this machine, and ES modules will not
@@ -108,6 +122,7 @@ IMPLEMENTATION_GUIDE.md  ground rules
 src/
   config.js   CFG — every tunable number, single source of truth
   math.js     clamp/rand/lerpAngle/turnToward/decay/approach
+  rng.js      seeded RNG (FNV-1a hash + mulberry32) for the daily
   storage.js  localStorage, fully guarded
   dom.js      one element lookup each; fatal banner; live region
   audio.js    Web Audio synth only (AUD-01..06)
@@ -116,9 +131,13 @@ src/
   ball.js     the core verb, integration, death burst
   spawn.js    spawners + pacing; fairness rules
   entities.js hazard stepping, contact (shield/kill/near-miss), pickups
-  flow.js     state machine: menu/play/paused/dying/over
+  flow.js     state machine: menu/play/paused/dying/over; modes; share text
+  achievements.js  Phase 4 badges + toast queue
+  skins.js    Phase 4 palette swaps and unlock thresholds
+  daily.js    Phase 4 seeded daily modifiers and per-day best
+  climb.js    Phase 5 bands, corridor validation, camera, lava
   render.js   all canvas drawing (no blur filters, particles are fillRect)
-  hud.js      DOM HUD, overlays, effect pills, focus management
+  hud.js      DOM HUD, overlays, effect pills, toasts, meta rows, focus management
   input.js    the only place that touches DOM events
   game.js     loop (the single dt clamp), boot, debug seam
 tools/        serve.ps1 (static server), verify.ps1, fails.ps1
@@ -156,9 +175,17 @@ the target module layout) are missing. The layout above is inferred from
   near-miss bonus, edge warnings.
 - Phase 3 (content): done — falling spike, slow-mo bubble, magnet, heavy star,
   seeker drone; each with feedback, a sound and a menu line.
+- Phase 4 (meta & retention): done — four achievements with CSS toasts, four
+  unlockable palette skins, seeded daily challenge with per-day best, clipboard
+  share. None of it touches the core loop's frame budget (conditions are a few
+  comparisons per frame; toasts and meta rows are DOM-only).
+- Phase 5 (climb mode): done — camera follows max height, score in metres,
+  procedurally generated saw bands with a corridor validated at generation time
+  (width, arena bounds, saw-free, lateral reachability), rising lava with a
+  capped speed as the soft timer.
 - All P0 and P1 requirement IDs implemented and covered by the harness.
-- Phase 4 (achievements, skins, daily challenge, share), Phase 5 (climb mode)
-  and Phase 6 (ship/QA-on-device) remain, as scoped.
+- Phase 6 (ship/QA-on-device) remains: QA checklist on a real mid-range phone
+  and a performance pass.
 
 Tuning lives entirely in `CFG` (`src/config.js`); the ROADMAP §5 table still
 applies, with the new knobs documented inline.

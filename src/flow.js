@@ -8,6 +8,9 @@ import { approach } from './math.js';
 import { LS } from './storage.js';
 import { announce } from './dom.js';
 import { Snd } from './audio.js';
+import { dailyBestSet, dailyKey, dailyMods } from './daily.js';
+import { skinLoad } from './skins.js';
+import { climbInit } from './climb.js';
 import { resetBall, resetRun } from './state.js';
 import { deathBurst } from './ball.js';
 import { hideOverlays, showGameOver, showMenu, showPause, syncMuteButton } from './hud.js';
@@ -23,14 +26,27 @@ export function loadPersisted(g){
   syncMuteButton();
 }
 
-export function startGame(g){
+/* One entry point for every mode; startGame keeps the classic signature. */
+export function startRun(g, mode, useDaily){
   Snd.ensure();                       // AUD-02: inside a user gesture
+  g.mode = mode === 'climb' ? 'climb' : 'classic';
+  g.daily = (useDaily && g.mode === 'classic') ? dailyMods(dailyKey()) : null;
+  g.bestKey = g.mode === 'climb' ? KEYS.bestClimb : KEYS.best;
+  g.best = Math.max(0, Math.floor(LS.num(g.bestKey, 0)));
   resetRun(g);
+  g.skin = skinLoad();
+  if (g.mode === 'climb') climbInit(g);
   g.state = 'play';
   hideOverlays();
-  Snd.start();
-  announce('Run started. Click near the ball to bounce it.');
+  if (g.mode === 'climb') Snd.climb(); else Snd.start();
+  announce(g.mode === 'climb'
+    ? 'Climb mode. Bounce upward; the lava is rising.'
+    : (g.daily ? 'Daily challenge started. ' : 'Run started. ') + 'Click near the ball to bounce it.');
 }
+
+export function startGame(g){ startRun(g, 'classic', false); }
+export function startDaily(g){ startRun(g, 'classic', true); }
+export function startClimb(g){ startRun(g, 'climb', false); }
 
 /* CORE-04 / HAZ-03 both end here. The panel is delayed so the death lands first. */
 export function die(g){
@@ -46,9 +62,21 @@ export function die(g){
   g.newBest = g.score > g.best;
   if (g.newBest){
     g.best = g.score;
-    LS.set(KEYS.best, String(g.best));     // silently ignored if storage is blocked
+    LS.set(g.bestKey, String(g.best));     // silently ignored if storage is blocked
   }
+  if (g.daily) dailyBestSet(g.daily.key, g.score);
   announce('Run over. Score ' + g.score + (g.newBest ? ', new best!' : '') + ' Best ' + g.best + '.');
+}
+
+/* Phase 4 share: plain text, no network, clipboard only. */
+export function shareText(g){
+  const secs = Math.floor(g.elapsed) + 's';
+  if (g.mode === 'climb'){
+    return 'KEEP IT UP \u2014 CLIMB ' + g.score + ' m in ' + secs;
+  }
+  const combo = '\u00d7' + Math.min(g.maxCombo, CFG.comboCap);
+  const head = g.daily ? 'KEEP IT UP \u2014 DAILY ' + g.daily.key + ' \u2014 ' : 'KEEP IT UP \u2014 ';
+  return head + g.score + ' pts, ' + combo + ' combo, ' + secs;
 }
 
 /* Real-time (unscaled) driver for the death sequence and the restart lock. */
@@ -105,9 +133,13 @@ export function quitToMenu(g){
   g.state = 'menu';
   g.pausedBy = null;
   g.timeScale = 1;
+  g.mode = 'classic';
+  g.daily = null;
+  g.bestKey = KEYS.best;
+  g.best = Math.max(0, Math.floor(LS.num(KEYS.best, 0)));
   resetRun(g);
   resetBall(g);
-  showMenu();
+  showMenu(g);
 }
 
 export function toggleMute(){

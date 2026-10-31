@@ -131,10 +131,42 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
   max-width:90vw; font-family:var(--mono); font-size:12px; color:#181206; background:var(--hot);
   border:2px solid #7a1f2b; padding:10px 14px; white-space:pre-wrap;}
 
+/* ---------- Phase 4: toasts, badges, skins, daily, modes ---------- */
+.unit{font-family:var(--mono); font-size:clamp(16px,3vw,24px); font-weight:900; color:var(--dim); margin-left:4px;}
+#toasts{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:30;
+  pointer-events:none; display:flex; flex-direction:column; align-items:center; gap:8px;}
+.toast{font-family:var(--mono); text-align:center; background:var(--panel);
+  border:3px solid var(--cool); border-left-width:8px; padding:9px 18px;
+  box-shadow:8px 9px 0 rgba(0,0,0,.45); opacity:0; transform:translateY(24px) scale(.92);
+  transition:opacity var(--toast-in,.3s) cubic-bezier(.2,1.4,.4,1),
+             transform var(--toast-in,.3s) cubic-bezier(.2,1.4,.4,1);}
+.toast b{display:block; font-size:14px; letter-spacing:.18em; color:var(--cool);}
+.toast span{display:block; font-size:11px; color:var(--dim); margin-top:2px;}
+.toast.show{opacity:1; transform:none;}
+.swatches{display:flex; gap:8px; justify-content:center; margin:0 0 10px;}
+.swatch{width:34px; height:34px; border-radius:50%; cursor:pointer; position:relative;
+  border:3px solid var(--line); background:radial-gradient(circle at 32% 30%, var(--hi), var(--mid) 55%, var(--lo));
+  transition:transform .08s;}
+.swatch:hover{transform:scale(1.1);}
+.swatch[aria-pressed="true"]{border-color:var(--ink); box-shadow:0 0 0 2px rgba(245,247,255,.25);}
+.swatch.locked{filter:grayscale(.9) brightness(.55); cursor:not-allowed;}
+.swatch.locked::after{content:'\1F512'; position:absolute; inset:0; display:flex;
+  align-items:center; justify-content:center; font-size:13px;}
+.badges{display:flex; gap:8px; justify-content:center; margin:0 0 12px;}
+.badge{width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:14px; background:#0f1420; border:2px solid var(--line); color:#3c4356;}
+.badge.on{background:var(--accent); border-color:#b98f2e; color:#181206;
+  box-shadow:0 0 10px rgba(255,209,102,.45);}
+.daily{font-family:var(--mono); font-size:11px; letter-spacing:.06em; color:var(--violet);
+  text-align:center; margin:0 0 10px;}
+.modes{display:flex; gap:10px; margin-top:10px;}
+.modes .ghost{margin-top:0;}
+
 /* ---------- A11Y-01: prefers-reduced-motion ---------- */
 @media (prefers-reduced-motion: reduce){
   .demo-ball,.demo-shadow,.panel,#newBest,#score.pop{animation:none;}
   button.big,button.big:hover,button.big:active{transition:none; transform:none;}
+  .toast,.swatch,.swatch:hover{transition:none; transform:none;}
   #comboBox{transition:none;}
 }
 
@@ -158,9 +190,13 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
 <canvas id="game" aria-label="Gameplay surface. Click or tap near the ball to bounce it away from your pointer."></canvas>
 
 <div id="hud">
-  <div id="scoreBox"><span id="score">0</span><div id="best">BEST 0</div></div>
+  <div id="scoreBox"><span id="score">0</span><span id="scoreUnit" class="unit hidden">m</span><div id="best">BEST 0</div></div>
   <div id="comboBox"><div id="combo">&times;2</div><div id="comboBarWrap"><div id="comboBar"></div></div></div>
   <div id="effects" aria-hidden="true"></div>
+</div>
+
+<div id="toasts" aria-live="polite">
+  <div id="toast" class="toast"><b id="toastName"></b><span id="toastDesc"></span></div>
 </div>
 
 <div id="sysBtns">
@@ -174,6 +210,15 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
     <h1 id="menuTitle">KEEP <em>IT&nbsp;UP</em></h1>
     <p class="tag">The jelly ball knows only one word: <b>boing</b>. Keep it off the floor.</p>
     <div class="demo" aria-hidden="true"><div class="demo-ball"></div><div class="demo-shadow"></div></div>
+    <p id="dailyStrip" class="daily"></p>
+    <div id="skins" class="swatches" role="group" aria-label="Ball skins"></div>
+    <div id="badges" class="badges" role="group" aria-label="Achievements"></div>
+    <button id="startBtn" class="big" type="button">START BOUNCING</button>
+    <div class="modes">
+      <button id="climbBtn" class="ghost" type="button">CLIMB MODE (C)</button>
+      <button id="dailyBtn" class="ghost" type="button">DAILY RUN (D)</button>
+    </div>
+    <p class="hint">space / enter also works &middot; M mutes &middot; P pauses</p>
     <ul class="how">
       <li><b>Click / tap near the ball</b> &mdash; it gets pushed <b>away</b> from your finger, so you can steer it.</li>
       <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing &mdash; and chain <b>combos</b> (max &times;10).</li>
@@ -183,9 +228,9 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
       <li><b class="c-bronze">dark gold star</b> = +200, but you get <b>heavy</b> for 8s. Greed is a choice.</li>
       <li>Watch the edges: <b class="c-hot">red flash</b> = saw incoming, <b class="c-hot">ceiling marker</b> = spike dropping where you <i>were</i>. After 60s a <b>drone</b> hunts you &mdash; it dies on walls.</li>
       <li>Skim a saw for a <b>near-miss bonus</b>. <b>P</b> or <b>Esc</b> pauses.</li>
+      <li><b>Climb mode</b>: race upward for metres while lava rises; follow the <b class="c-teal">dashed corridor</b> through each saw band.</li>
+      <li><b>Badges</b> for &times;10, 3 stars, 120s and a shield save &middot; <b>skins</b> unlock at best-score thresholds &middot; the <b>daily</b> remixes the physics each day.</li>
     </ul>
-    <button id="startBtn" class="big" type="button">START BOUNCING</button>
-    <p class="hint">space / enter also works &middot; M mutes &middot; P pauses</p>
   </div>
 </div>
 
@@ -202,7 +247,7 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
 
 <div id="over" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="overTitle">
   <div class="panel">
-    <p class="eyebrow">GRAVITY WINS</p>
+    <p class="eyebrow" id="overEyebrow">GRAVITY WINS</p>
     <h1 id="overTitle">SPLAT<em>.</em></h1>
     <div id="finalScore"><span id="finalScoreVal">0</span><span id="newBest">NEW BEST!</span></div>
     <div class="stats">
@@ -212,6 +257,7 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
       <div class="stat"><b id="finalBest">0</b><span>BEST</span></div>
     </div>
     <button id="retryBtn" class="big" type="button">BOUNCE AGAIN</button>
+    <button id="shareBtn" class="ghost" type="button">COPY SCORE</button>
     <p class="hint">space / enter to retry</p>
   </div>
 </div>
@@ -515,11 +561,61 @@ const CFG = {
   throttleNearMiss: 0.3,
   throttleWarn: 0.25,
   throttleSeeker: 0.4,
+
+  /* ---------------- achievements (Phase 4) ---------------- */
+  achToastTime: 3.2,            // seconds a badge toast stays up
+  achToastIn: 0.35,
+  achToastGap: 0.3,             // pause between queued toasts
+  achToastCap: 4,               // pillar 4: the queue is bounded
+  achStars: 3,                  // "3 stars in one run"
+  achSurvive: 120,              // "survive 120 s"
+
+  /* ---------------- skins (Phase 4): unlock by best-score threshold ---------------- */
+  skinUnlock: [0, 600, 1800, 4000],
+
+  /* ---------------- daily challenge (Phase 4) ---------------- */
+  dailyGravityMin: 0.85,        // seeded multipliers, all bounded (pillar 4)
+  dailyGravityMax: 1.2,
+  dailyIntervalMin: 0.8,
+  dailyIntervalMax: 1.25,
+  dailySawSpeedMin: 0.85,
+  dailySawSpeedMax: 1.3,
+  dailyGraceMin: 6,
+  dailyGraceMax: 12,
+  dailyStarMin: 0.7,
+  dailyStarMax: 1.4,
+
+  /* ---------------- climb mode (Phase 5) ---------------- */
+  climbBandSpacing: 300,        // one procedural band per this many px of height
+  climbCorridorMin: 150,        // guaranteed passable gap width (pillar 3)
+  climbMaxLateral: 260,         // max corridor shift between consecutive bands
+  climbEdgePad: 40,
+  climbSawR: 22,
+  climbSawPad: 2,
+  climbSawsPerBandMax: 10,      // pillar 4
+  climbBandAhead: 1.5,          // screens of bands generated above the viewport
+  climbBandCap: 8,              // pillar 4: live bands kept in memory
+  climbHazardCap: 80,           // pillar 4: bandCap * sawsPerBandMax, the hard ceiling
+  climbStarDrop: 46,            // star sits this far above its band line
+  climbStarMeters: 5,           // a climb star is worth this many metres
+  climbShieldEvery: 3,          // every Nth band also hides a shield in its corridor
+  climbPixelsPerMeter: 40,
+  climbCamLead: 0.45,           // max height rests at this fraction of the view
+  climbLavaStart: 520,          // lava begins this far below the start
+  climbLavaGrace: 3,            // seconds before the lava starts rising
+  climbLavaSpeedBase: 26,
+  climbLavaSpeedRamp: 0.35,
+  climbLavaSpeedMax: 70,        // pillar 4 cap
+  climbLavaWarn: 140,           // glow height above the lava line
 };
 
 const KEYS = {
   best: 'keepup.best',
+  bestClimb: 'keepup.best.climb',
   mute: 'keepup.muted',
+  ach: 'keepup.ach',
+  skin: 'keepup.skin',
+  daily: 'keepup.daily.',       // + YYYY-MM-DD
 };
 
 
@@ -554,6 +650,42 @@ function decay(v, rate, dt){ return v * Math.exp(-rate * dt); }
 
 /* move v toward target by a 0..1 fraction */
 function approach(v, target, t){ return v + (target - v) * clamp(t, 0, 1); }
+
+
+/* ===================== rng.js ===================== */
+
+/* rng.js — deterministic RNG for the daily challenge (Phase 4).
+ * The seed is a date string, so everyone gets the same modifiers that day.
+ * Gameplay itself still uses Math.random; only the daily *mix* is seeded.
+ */
+
+/* FNV-1a: short, stable, good enough for seeding */
+function hashSeed(str){
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++){
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/* mulberry32: tiny, fast, deterministic */
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seededRange(rnd, a, b){ return a + rnd() * (b - a); }
+
+function seededInt(rnd, a, b){ return Math.floor(seededRange(rnd, a, b + 1)); }
+
+function seededPick(rnd, arr){ return arr[Math.floor(rnd() * arr.length) % arr.length]; }
 
 
 /* ===================== storage.js ===================== */
@@ -622,9 +754,21 @@ const DOM = {
   over: byId('over'),
   pauseReason: byId('pauseReason'),
   startBtn: byId('startBtn'),
+  climbBtn: byId('climbBtn'),
+  dailyBtn: byId('dailyBtn'),
+  shareBtn: byId('shareBtn'),
   resumeBtn: byId('resumeBtn'),
   pauseQuitBtn: byId('pauseQuitBtn'),
   retryBtn: byId('retryBtn'),
+  scoreUnit: byId('scoreUnit'),
+  overEyebrow: byId('overEyebrow'),
+  toasts: byId('toasts'),
+  toast: byId('toast'),
+  toastName: byId('toastName'),
+  toastDesc: byId('toastDesc'),
+  badges: byId('badges'),
+  skins: byId('skins'),
+  dailyStrip: byId('dailyStrip'),
   finalScoreVal: byId('finalScoreVal'),
   newBest: byId('newBest'),
   finalBounces: byId('finalBounces'),
@@ -782,6 +926,11 @@ const Snd = {
   slowmoEnd(){ this.tone(392, 523, 0.12, 'sine', 0.14); },
   magnet(){ this.tone(523, 784, 0.14, 'triangle', 0.3); this.tone(659, 988, 0.12, 'sine', 0.16, 0.06); },
   heavy(){ this.tone(180, 120, 0.24, 'sawtooth', 0.3); this.noise(0.16, 0.18); this.tone(1046, 1046, 0.08, 'sine', 0.2, 0.02); },
+
+  /* Phase 4 */
+  achievement(){ this.tone(659, 659, 0.09, 'triangle', 0.32); this.tone(880, 880, 0.09, 'triangle', 0.3, 0.09); this.tone(1318, 1318, 0.16, 'sine', 0.26, 0.18); },
+  copy(){ this.tone(988, 1480, 0.07, 'sine', 0.22); },
+  climb(){ this.tone(262, 392, 0.12, 'triangle', 0.3); this.tone(392, 523, 0.14, 'triangle', 0.26, 0.1); },
 };
 
 
@@ -813,6 +962,13 @@ function createGame(){
     pausedBy: null,        // 'user' | 'tab'
     reducedMotion: false,  // A11Y-01
 
+    /* mode (Phase 5): 'classic' | 'climb'; daily holds seeded mods or null */
+    mode: 'classic',
+    daily: null,
+    bestKey: KEYS.best,
+    skin: null,
+    climb: null,
+
     /* view */
     W: 0, H: 0, dpr: 1,
 
@@ -829,6 +985,7 @@ function createGame(){
     /* scoring (SCORE-*) */
     score: 0, best: 0, newBest: false,
     combo: 0, comboTimer: 0, maxCombo: 0, bounces: 0,
+    starsRun: 0, shieldSaves: 0,      // Phase 4 achievement counters
 
     /* active effects */
     shield: false,    // PICK-02
@@ -875,17 +1032,21 @@ function resetBall(g){
 
 function resetRun(g){
   g.score = 0; g.combo = 0; g.comboTimer = 0; g.maxCombo = 0; g.bounces = 0;
+  g.starsRun = 0; g.shieldSaves = 0;
   g.newBest = false;
   g.elapsed = 0;
   g.lastBounceAt = g.totalT - 9;      // first bounce of a run is always full charge
   g.timeScale = 1; g.deathT = 0; g.panelShown = false; g.hitStop = 0;
   g.shake = 0; g.dotKick = 0;
   g.shield = false; g.slowmoT = 0; g.magnetT = 0; g.heavyT = 0;
+  g.climb = null;
 
   g.hazards.length = 0; g.pickups.length = 0;
   g.particles.length = 0; g.rings.length = 0; g.texts.length = 0; g.edgeWarns.length = 0;
 
-  g.sawTimer = CFG.hazardDelay;                  // DIFF-02 grace period
+  /* the daily seed, when present, replaces the classic pacing constants */
+  const d = g.daily;
+  g.sawTimer = d ? d.grace : CFG.hazardDelay;          // DIFF-02 grace period
   g.spikeTimer = CFG.spikeFirstAfterGate;
   g.seekerTimer = CFG.seekerFirstAfterGate;
   g.starTimer = CFG.starFirst;
@@ -897,9 +1058,10 @@ function resetRun(g){
   resetBall(g);
 }
 
-/* DIFF-01 ramp, then pickup multipliers, then the hard cap (DIFF-05). */
+/* DIFF-01 ramp, then daily + pickup multipliers, then the hard cap (DIFF-05). */
 function gravityNow(g){
   let gr = Math.min(CFG.gravityMax, CFG.gravityBase + g.elapsed * CFG.gravityRamp);
+  if (g.daily) gr *= g.daily.gravityMul;
   if (g.slowmoT > 0) gr *= CFG.slowmoGravityMul;
   if (g.heavyT > 0) gr *= CFG.heavyGravityMul;
   return Math.min(gr, CFG.gravityHardCap);
@@ -1086,9 +1248,11 @@ function attemptBounce(g, cx, cy, auto){
     g.comboTimer = CFG.comboWindow;
     g.maxCombo = Math.max(g.maxCombo, g.combo);
     g.bounces++;
-    /* SCORE-01/03 */
-    addScore(g, CFG.bouncePoints * Math.min(g.combo, CFG.comboCap),
-             b.x, b.y - b.r - CFG.scoreTextDy, '#ffd166');
+    /* SCORE-01/03 — climb mode scores metres only (Phase 5) */
+    if (g.mode !== 'climb'){
+      addScore(g, CFG.bouncePoints * Math.min(g.combo, CFG.comboCap),
+               b.x, b.y - b.r - CFG.scoreTextDy, '#ffd166');
+    }
     Snd.bounce(g.combo);
   } else if (!auto){
     Snd.bounce(1);
@@ -1116,9 +1280,12 @@ function updateBall(g, dt, gravity){
     b.x = g.W - b.r; b.vx = -Math.abs(b.vx) * CFG.wallRest;
     b.wAmp = Math.max(b.wAmp, CFG.wallWobble); Snd.wall();
   }
-  /* soft ceiling: the ball may leave the top but is pushed back */
-  const ceil = -b.r * CFG.ceilingPad;
-  if (b.y < ceil){ b.y = ceil; b.vy = Math.abs(b.vy) * CFG.ceilingRest; }
+  /* soft ceiling: the ball may leave the top but is pushed back.
+   * Climb mode has open sky instead. */
+  if (g.mode !== 'climb'){
+    const ceil = -b.r * CFG.ceilingPad;
+    if (b.y < ceil){ b.y = ceil; b.vy = Math.abs(b.vy) * CFG.ceilingRest; }
+  }
 
   /* PHYS-04: stretch follows the velocity vector; the face counter-rotates */
   const sp = Math.hypot(b.vx, b.vy);
@@ -1145,6 +1312,204 @@ function deathBurst(g){
 }
 
 
+/* ===================== achievements.js ===================== */
+
+/* achievements.js — Phase 4 badges: earned in-run, remembered forever, announced
+ * with a pure-CSS toast (hud.js only toggles classes).
+ * Guide rule 3: each badge has feedback (toast), a sound, and a menu line.
+ */
+
+
+const ACH = [
+  { id: 'combo10', name: 'MAXIMUM JELLY', desc: 'reach a x10 combo' },
+  { id: 'stars3', name: 'STAR VACUUM', desc: 'grab 3 stars in one run' },
+  { id: 'live120', name: 'TWO MINUTES', desc: 'survive 120 seconds' },
+  { id: 'save1', name: 'BODYGUARD', desc: 'let a shield eat a hazard' },
+];
+
+let unlocked = null;
+const queue = [];
+let showing = null;
+let gapT = 0;
+
+function achLoad(){
+  if (unlocked) return unlocked;
+  unlocked = {};
+  const raw = LS.get(KEYS.ach);
+  if (raw){
+    const parts = raw.split(',');
+    for (let i = 0; i < parts.length; i++){
+      if (parts[i]) unlocked[parts[i]] = 1;
+    }
+  }
+  return unlocked;
+}
+
+function achHas(id){ return !!achLoad()[id]; }
+
+function achCount(){
+  const u = achLoad();
+  let n = 0;
+  for (let i = 0; i < ACH.length; i++) if (u[ACH[i].id]) n++;
+  return n;
+}
+
+function achDef(id){
+  for (let i = 0; i < ACH.length; i++) if (ACH[i].id === id) return ACH[i];
+  return null;
+}
+
+function achUnlock(g, id){
+  const u = achLoad();
+  if (u[id]) return false;
+  u[id] = 1;
+  const ids = [];
+  for (let i = 0; i < ACH.length; i++) if (u[ACH[i].id]) ids.push(ACH[i].id);
+  LS.set(KEYS.ach, ids.join(','));          // guarded; silently skipped if blocked
+  if (queue.length < CFG.achToastCap) queue.push(id);
+  Snd.achievement();
+  return true;
+}
+
+/* Conditions are checked here so triggers stay in one auditable place. */
+function checkConditions(g){
+  if (g.state !== 'play') return;
+  if (g.combo >= CFG.comboCap) achUnlock(g, 'combo10');
+  if (g.starsRun >= CFG.achStars) achUnlock(g, 'stars3');
+  if (g.elapsed >= CFG.achSurvive) achUnlock(g, 'live120');
+  if (g.shieldSaves >= 1) achUnlock(g, 'save1');
+}
+
+/* Advances the toast clock; returns the toast currently on screen (or null). */
+function achTick(g, dt){
+  checkConditions(g);
+  if (showing){
+    showing.t -= dt;
+    if (showing.t <= 0){ showing = null; gapT = CFG.achToastGap; }
+  } else if (gapT > 0){
+    gapT -= dt;
+  } else if (queue.length){
+    showing = { id: queue.shift(), t: CFG.achToastTime };
+  }
+  return showing;
+}
+
+function achCurrentToast(){ return showing; }
+
+/* Test seam: forget everything and drop pending toasts. */
+function achReset(){
+  unlocked = null;
+  queue.length = 0;
+  showing = null;
+  gapT = 0;
+}
+
+
+/* ===================== skins.js ===================== */
+
+/* skins.js — Phase 4 palette swaps. No images, ever: a skin is four colours.
+ * Unlocks are best-score thresholds (CFG.skinUnlock); the choice is remembered.
+ */
+
+
+const SKINS = [
+  { id: 'jelly', name: 'JELLY', hi: '#ffd9d0', mid: '#ff6b6b', lo: '#c9375c', trail: '#ff8f8f' },
+  { id: 'lime', name: 'LIME', hi: '#eaffd0', mid: '#7ed957', lo: '#2f9e44', trail: '#a8e063' },
+  { id: 'grape', name: 'GRAPE', hi: '#f0d9ff', mid: '#b06bff', lo: '#6a2fa0', trail: '#c99aff' },
+  { id: 'solar', name: 'SOLAR', hi: '#fff3c4', mid: '#ffb703', lo: '#b45309', trail: '#ffd166' },
+];
+
+let selected = null;
+
+function skinIndex(id){
+  for (let i = 0; i < SKINS.length; i++) if (SKINS[i].id === id) return i;
+  return -1;
+}
+
+function skinIsUnlocked(i, best){
+  return i >= 0 && i < CFG.skinUnlock.length && best >= CFG.skinUnlock[i];
+}
+
+function skinUnlockedCount(best){
+  let n = 0;
+  for (let i = 0; i < SKINS.length; i++) if (skinIsUnlocked(i, best)) n++;
+  return n;
+}
+
+function skinLoad(){
+  if (selected) return selected;
+  const i = skinIndex(LS.get(KEYS.skin));
+  selected = i >= 0 ? SKINS[i] : SKINS[0];
+  return selected;
+}
+
+/* Refuses locked skins; a stored id that is somehow locked falls back to default. */
+function skinChoose(id, best){
+  const i = skinIndex(id);
+  if (!skinIsUnlocked(i, best)) return null;
+  selected = SKINS[i];
+  LS.set(KEYS.skin, selected.id);
+  return selected;
+}
+
+function skinThreshold(i){
+  return i >= 0 && i < CFG.skinUnlock.length ? CFG.skinUnlock[i] : 0;
+}
+
+
+/* ===================== daily.js ===================== */
+
+/* daily.js — Phase 4 daily challenge: the date seeds a modifier mix, and today's
+ * result is remembered. Every multiplier is bounded in CFG (pillar 4).
+ */
+
+
+function dailyKey(d){
+  const dt = d || new Date();
+  const m = dt.getMonth() + 1;
+  const day = dt.getDate();
+  return dt.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+}
+
+function dailyMods(key){
+  const rnd = mulberry32(hashSeed('keepup:' + key));
+  return {
+    key: key,
+    gravityMul: seededRange(rnd, CFG.dailyGravityMin, CFG.dailyGravityMax),
+    intervalMul: seededRange(rnd, CFG.dailyIntervalMin, CFG.dailyIntervalMax),
+    sawSpeedMul: seededRange(rnd, CFG.dailySawSpeedMin, CFG.dailySawSpeedMax),
+    grace: seededRange(rnd, CFG.dailyGraceMin, CFG.dailyGraceMax),
+    starMul: seededRange(rnd, CFG.dailyStarMin, CFG.dailyStarMax),
+  };
+}
+
+/* Two or three human-readable chips for the menu strip. */
+function dailyLabel(m){
+  const bits = [];
+  bits.push(m.gravityMul > 1.03 ? 'heavy gravity' : m.gravityMul < 0.97 ? 'light gravity' : 'normal gravity');
+  bits.push(m.intervalMul < 0.95 ? 'relentless saws' : m.intervalMul > 1.08 ? 'sparse saws' : 'steady saws');
+  bits.push(m.sawSpeedMul > 1.08 ? 'fast saws' : m.sawSpeedMul < 0.92 ? 'slow saws' : 'usual saw speed');
+  if (m.starMul > 1.1) bits.push('star rain');
+  else if (m.starMul < 0.9) bits.push('star drought');
+  return bits.slice(0, 3).join(' · ');
+}
+
+function dailyBestGet(key){
+  return Math.max(0, Math.floor(LS.num(KEYS.daily + key, 0)));
+}
+
+function dailyBestSet(key, score){
+  if (score <= dailyBestGet(key)) return false;
+  LS.set(KEYS.daily + key, String(score));
+  return true;
+}
+
+/* The interval floor still exists so a brutal seed stays playable (pillar 4). */
+function dailyIntervalFloor(){
+  return 0.9;
+}
+
+
 /* ===================== hud.js ===================== */
 
 /* hud.js — everything drawn in DOM/CSS rather than canvas (UI-03, UI-05).
@@ -1158,6 +1523,8 @@ let hudCombo = -1;
 let hudComboWidth = -1;
 let hudFxKey = '';
 let hudPauseState = '';
+let hudToastId = '';
+let hudUnitState = '';
 
 function focusEl(el){
   if (el && typeof el.focus === 'function'){
@@ -1171,9 +1538,10 @@ function hideOverlays(){
   DOM.over.classList.add('hidden');
 }
 
-function showMenu(){
+function showMenu(g){
   hideOverlays();
   DOM.menu.classList.remove('hidden');
+  if (g) renderMeta(g);
   focusEl(DOM.startBtn);
 }
 
@@ -1187,12 +1555,15 @@ function showPause(g){
 }
 
 function fillGameOver(g){
+  DOM.overEyebrow.textContent = g.mode === 'climb' ? 'THE LAVA WINS'
+    : g.daily ? 'DAILY ' + g.daily.key : 'GRAVITY WINS';
   DOM.finalScoreVal.textContent = g.score;
   DOM.newBest.style.display = g.newBest ? 'inline-block' : 'none';
   DOM.finalBounces.textContent = g.bounces;
   DOM.finalCombo.textContent = '\u00d7' + Math.min(g.maxCombo, CFG.comboCap);
   DOM.finalTime.textContent = Math.floor(g.elapsed) + 's';
   DOM.finalBest.textContent = g.best;
+  DOM.shareBtn.textContent = 'COPY SCORE';
 }
 
 function showGameOver(g){
@@ -1266,7 +1637,103 @@ function updateHud(g){
     DOM.effects.innerHTML = fx;
   }
 
+  const unit = g.mode === 'climb' ? 'm' : '';
+  if (unit !== hudUnitState){
+    hudUnitState = unit;
+    DOM.scoreUnit.textContent = unit;
+    DOM.scoreUnit.classList.toggle('hidden', !unit);
+  }
+
+  updateToast();
   syncPauseButton(g);
+}
+
+/* Phase 4 badge toast: pure CSS animation, JS only swaps content and the class. */
+function updateToast(){
+  const t = achCurrentToast();
+  const id = t ? t.id : '';
+  if (id === hudToastId) return;
+  hudToastId = id;
+  if (!t){
+    DOM.toast.classList.remove('show');
+    return;
+  }
+  const def = achDef(id);
+  DOM.toastName.textContent = def ? def.name : id;
+  DOM.toastDesc.textContent = def ? def.desc : '';
+  DOM.toast.classList.remove('show');
+  void DOM.toast.offsetWidth;
+  DOM.toast.classList.add('show');
+}
+
+/* Menu furniture: earned badges, skin swatches, today's daily mix. */
+function renderMeta(g){
+  const best = Math.max(0, Math.floor(LS.num(KEYS.best, 0)));
+
+  let bhtml = '';
+  for (let i = 0; i < ACH.length; i++){
+    const a = ACH[i];
+    const on = achHas(a.id);
+    bhtml += '<span class="badge' + (on ? ' on' : '') + '" title="' + a.desc + '"'
+          +  ' aria-label="Badge ' + a.name + ': ' + a.desc + (on ? ', unlocked' : ', locked') + '">'
+          +  (on ? '\u2605' : '\u00b7') + '</span>';
+  }
+  DOM.badges.innerHTML = bhtml;
+
+  let shtml = '';
+  for (let i = 0; i < SKINS.length; i++){
+    const s = SKINS[i];
+    const un = skinIsUnlocked(i, best);
+    const sel = !!(g.skin && g.skin.id === s.id);
+    shtml += '<button type="button" class="swatch' + (un ? '' : ' locked') + '" data-skin="' + s.id + '"'
+          +  ' style="--hi:' + s.hi + ';--mid:' + s.mid + ';--lo:' + s.lo + '"'
+          +  ' aria-pressed="' + (sel ? 'true' : 'false') + '"'
+          +  ' title="' + s.name + (un ? '' : ' \u2014 unlocks at ' + skinThreshold(i)) + '"'
+          +  ' aria-label="Skin ' + s.name + (un ? '' : ', locked, unlocks at ' + skinThreshold(i)) + '"></button>';
+  }
+  DOM.skins.innerHTML = shtml;
+
+  const key = dailyKey();
+  DOM.dailyStrip.textContent = 'DAILY ' + key + ' \u00b7 ' + dailyLabel(dailyMods(key))
+                             + ' \u00b7 best ' + dailyBestGet(key);
+}
+
+/* Phase 4 share: clipboard only, never the network (PORT-01 / DATA-01). */
+function fallbackCopy(text){
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!ok;
+  } catch (e){ return false; }
+}
+
+function copyShare(text){
+  const finish = ok => {
+    DOM.shareBtn.textContent = ok ? 'COPIED!' : 'COPY FAILED';
+    if (ok) Snd.copy();
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(
+      function(){ finish(true); },
+      function(){ finish(fallbackCopy(text)); }
+    );
+  } else {
+    finish(fallbackCopy(text));
+  }
+}
+
+/* CFG drives the CSS toast timing too, so the knob stays single-sourced. */
+function applyCssKnobs(){
+  try {
+    document.documentElement.style.setProperty('--toast-in', CFG.achToastIn + 's');
+  } catch (e){ /* CSS variables unsupported: the stylesheet fallback applies */ }
 }
 
 /* Called once at boot so a cached value can never hide a real change. */
@@ -1295,14 +1762,27 @@ function loadPersisted(g){
   syncMuteButton();
 }
 
-function startGame(g){
+/* One entry point for every mode; startGame keeps the classic signature. */
+function startRun(g, mode, useDaily){
   Snd.ensure();                       // AUD-02: inside a user gesture
+  g.mode = mode === 'climb' ? 'climb' : 'classic';
+  g.daily = (useDaily && g.mode === 'classic') ? dailyMods(dailyKey()) : null;
+  g.bestKey = g.mode === 'climb' ? KEYS.bestClimb : KEYS.best;
+  g.best = Math.max(0, Math.floor(LS.num(g.bestKey, 0)));
   resetRun(g);
+  g.skin = skinLoad();
+  if (g.mode === 'climb') climbInit(g);
   g.state = 'play';
   hideOverlays();
-  Snd.start();
-  announce('Run started. Click near the ball to bounce it.');
+  if (g.mode === 'climb') Snd.climb(); else Snd.start();
+  announce(g.mode === 'climb'
+    ? 'Climb mode. Bounce upward; the lava is rising.'
+    : (g.daily ? 'Daily challenge started. ' : 'Run started. ') + 'Click near the ball to bounce it.');
 }
+
+function startGame(g){ startRun(g, 'classic', false); }
+function startDaily(g){ startRun(g, 'classic', true); }
+function startClimb(g){ startRun(g, 'climb', false); }
 
 /* CORE-04 / HAZ-03 both end here. The panel is delayed so the death lands first. */
 function die(g){
@@ -1318,9 +1798,21 @@ function die(g){
   g.newBest = g.score > g.best;
   if (g.newBest){
     g.best = g.score;
-    LS.set(KEYS.best, String(g.best));     // silently ignored if storage is blocked
+    LS.set(g.bestKey, String(g.best));     // silently ignored if storage is blocked
   }
+  if (g.daily) dailyBestSet(g.daily.key, g.score);
   announce('Run over. Score ' + g.score + (g.newBest ? ', new best!' : '') + ' Best ' + g.best + '.');
+}
+
+/* Phase 4 share: plain text, no network, clipboard only. */
+function shareText(g){
+  const secs = Math.floor(g.elapsed) + 's';
+  if (g.mode === 'climb'){
+    return 'KEEP IT UP \u2014 CLIMB ' + g.score + ' m in ' + secs;
+  }
+  const combo = '\u00d7' + Math.min(g.maxCombo, CFG.comboCap);
+  const head = g.daily ? 'KEEP IT UP \u2014 DAILY ' + g.daily.key + ' \u2014 ' : 'KEEP IT UP \u2014 ';
+  return head + g.score + ' pts, ' + combo + ' combo, ' + secs;
 }
 
 /* Real-time (unscaled) driver for the death sequence and the restart lock. */
@@ -1377,9 +1869,13 @@ function quitToMenu(g){
   g.state = 'menu';
   g.pausedBy = null;
   g.timeScale = 1;
+  g.mode = 'classic';
+  g.daily = null;
+  g.bestKey = KEYS.best;
+  g.best = Math.max(0, Math.floor(LS.num(KEYS.best, 0)));
   resetRun(g);
   resetBall(g);
-  showMenu();
+  showMenu(g);
 }
 
 function toggleMute(){
@@ -1392,6 +1888,180 @@ function toggleMute(){
   }
   announce(Snd.muted ? 'Sound off.' : 'Sound on.');
   return Snd.muted;
+}
+
+
+/* ===================== climb.js ===================== */
+
+/* climb.js — Phase 5: same physics, new mode, not a rewrite.
+ * The camera follows max height, score is metres, procedural bands of saws sit
+ * every climbBandSpacing px with a *validated* passable corridor, and rising lava
+ * replaces the floor as the fail line.
+ *
+ * Fairness (pillar 3) is structural here: a band is generated up to
+ * climbBandAhead screens above the viewport, so it is on screen for at least a
+ * full band of climbing before it can connect, and climbBandValid() proves the
+ * corridor exists and is reachable from the previous one at generation time.
+ */
+
+
+function climbBandY(g, k){
+  return g.climb.baseY - k * CFG.climbBandSpacing;
+}
+
+function climbLavaSpeed(g){
+  return Math.min(CFG.climbLavaSpeedMax, CFG.climbLavaSpeedBase + g.elapsed * CFG.climbLavaSpeedRamp);
+}
+
+/* Saw row covering the band line except the corridor. Extra holes left by the
+ * cap are fine: the guarantee is that the designed corridor exists. */
+function buildSaws(g, y, gapX, gapW, budget){
+  const saws = [];
+  const r = CFG.climbSawR;
+  const keepOut = gapW / 2 + r + g.ball.r;
+  const step = r * 2 + CFG.climbSawPad;
+  const x0 = r + 4, x1 = g.W - r - 4;
+  for (let x = x0; x <= x1; x += step){
+    if (Math.abs(x - gapX) < keepOut) continue;
+    saws.push({
+      x: x, y: y, r: r,
+      rot: rand(0, TAU),
+      rotV: rand(CFG.sawSpinMin, CFG.sawSpinMax) * (Math.random() < 0.5 ? 1 : -1),
+    });
+  }
+  if (saws.length > CFG.climbSawsPerBandMax){
+    const kept = [];
+    for (let i = 0; i < saws.length; i++) if (i % 2 === 0) kept.push(saws[i]);
+    return kept.slice(0, CFG.climbSawsPerBandMax);
+  }
+  return saws.slice(0, Math.max(0, budget));
+}
+
+/* The acceptance rule: a corridor of at least climbCorridorMin, inside the
+ * arena, free of saws, and within climbMaxLateral of the previous corridor. */
+function climbBandValid(g, band, prevGapX){
+  if (band.gapW < CFG.climbCorridorMin) return false;
+  if (Math.abs(band.gapX - prevGapX) > CFG.climbMaxLateral) return false;
+  const half = band.gapW / 2 + g.ball.r;
+  if (band.gapX - half < 0 || band.gapX + half > g.W) return false;
+  for (let i = 0; i < band.saws.length; i++){
+    const s = band.saws[i];
+    if (Math.abs(s.x - band.gapX) < half + s.r) return false;
+  }
+  return true;
+}
+
+function climbMakeBand(g, k){
+  const c = g.climb;
+  const y = climbBandY(g, k);
+  const gapW = CFG.climbCorridorMin;
+  const lo = CFG.climbEdgePad + gapW / 2;
+  const hi = Math.max(lo, g.W - CFG.climbEdgePad - gapW / 2);
+  let band = null;
+
+  for (let tries = 0; tries <= CFG.spawnRerolls; tries++){
+    const gapX = clamp(c.lastGapX + rand(-CFG.climbMaxLateral, CFG.climbMaxLateral), lo, hi);
+    const live = climbLiveSaws(g);
+    band = {
+      k: k, y: y, gapX: gapX, gapW: gapW,
+      saws: buildSaws(g, y, gapX, gapW, CFG.climbHazardCap - live),
+      items: [],
+    };
+    band.items.push({ type: 'star', x: gapX, y: y - CFG.climbStarDrop, alive: true, t: 0, ph: rand(0, TAU) });
+    if (k % CFG.climbShieldEvery === 0){
+      band.items.push({ type: 'shield', x: gapX, y: y - CFG.climbStarDrop * 2.2, alive: true, t: 0, ph: rand(0, TAU) });
+    }
+    if (climbBandValid(g, band, c.lastGapX)) break;
+  }
+  c.lastGapX = band.gapX;
+  return band;
+}
+
+function climbLiveSaws(g){
+  let n = 0;
+  for (let i = 0; i < g.climb.bands.length; i++) n += g.climb.bands[i].saws.length;
+  return n;
+}
+
+function climbEnsureBands(g){
+  const c = g.climb;
+  const limit = c.camY - g.H * CFG.climbBandAhead;
+  while (climbBandY(g, c.nextK) > limit){
+    c.bands.push(climbMakeBand(g, c.nextK));
+    c.nextK++;
+  }
+}
+
+function climbCullBands(g){
+  const c = g.climb;
+  const below = c.camY + g.H + CFG.climbBandSpacing;
+  while (c.bands.length && (c.bands[0].y > below || c.bands.length > CFG.climbBandCap)){
+    c.bands.shift();
+  }
+}
+
+function climbInit(g){
+  const b = g.ball;
+  g.climb = {
+    baseY: b.y, top: b.y,
+    camY: b.y - g.H * CFG.climbCamLead,
+    lavaY: b.y + CFG.climbLavaStart,
+    lavaT: 0,
+    bands: [], nextK: 1, lastGapX: b.x,
+    bonus: 0, meters: 0,
+  };
+  climbEnsureBands(g);
+}
+
+/* Returns true when the run ended this frame. */
+function climbUpdate(g, dt){
+  const c = g.climb, b = g.ball;
+
+  c.top = Math.min(c.top, b.y);
+  c.camY = c.top - g.H * CFG.climbCamLead;
+  climbEnsureBands(g);
+  climbCullBands(g);
+
+  c.lavaT += dt;
+  if (c.lavaT > CFG.climbLavaGrace) c.lavaY -= climbLavaSpeed(g) * dt;
+
+  for (let i = 0; i < c.bands.length; i++){
+    const band = c.bands[i];
+    for (let s = 0; s < band.saws.length; s++){
+      const saw = band.saws[s];
+      saw.rot += saw.rotV * dt;
+      if (!b.dead && hazardStrike(g, saw.x, saw.y, saw.r) === 'dead') return true;
+    }
+    for (let it = 0; it < band.items.length; it++){
+      const p = band.items[it];
+      if (!p.alive) continue;
+      p.t += dt;
+      if (b.dead) continue;
+      if (Math.hypot(p.x - b.x, p.y - b.y) < b.r + CFG.starR + CFG.pickupContactPad){
+        p.alive = false;
+        if (p.type === 'star'){
+          g.starsRun++;
+          c.bonus += CFG.climbStarMeters;
+          addText(g, p.x, p.y, '+' + CFG.climbStarMeters + 'm', '#ffd166');
+          Snd.star();
+        } else {
+          g.shield = true;
+          addText(g, p.x, p.y, 'SHIELD', '#4ecdc4');
+          Snd.shieldPickup();
+        }
+        burst(g, p.x, p.y, p.type === 'star' ? '#ffd166' : '#4ecdc4', CFG.collectBurst, CFG.collectBurstSpeed);
+      }
+    }
+  }
+
+  if (!b.dead && b.y + b.r >= c.lavaY){
+    die(g);
+    return true;
+  }
+
+  c.meters = Math.max(0, Math.floor((c.baseY - c.top) / CFG.climbPixelsPerMeter)) + c.bonus;
+  g.score = c.meters;
+  return false;
 }
 
 
@@ -1441,8 +2111,13 @@ function spawnSaw(g){
   if (!roomFor(g)) return null;
   const fromLeft = Math.random() < 0.5;
   const y = rollSafeY(g, g.H * CFG.sawSpawnYMinFrac, g.H * CFG.sawSpawnYMaxFrac);
-  const speed = rand(CFG.sawSpeedMin, CFG.sawSpeedMax)
-              + Math.min(CFG.sawSpeedRampCap, g.elapsed * CFG.sawSpeedRamp);   // DIFF-04
+  let speed = rand(CFG.sawSpeedMin, CFG.sawSpeedMax)
+            + Math.min(CFG.sawSpeedRampCap, g.elapsed * CFG.sawSpeedRamp);   // DIFF-04
+  /* the daily seed scales speed, but the product stays capped (pillar 4) */
+  if (g.daily){
+    speed = Math.min(speed * g.daily.sawSpeedMul,
+                     (CFG.sawSpeedMax + CFG.sawSpeedRampCap) * CFG.dailySawSpeedMax);
+  }
   const edgeX = fromLeft ? -CFG.spawnOffscreen : g.W + CFG.spawnOffscreen;
   const extra = offscreenStart(g, edgeX, speed);
   const side = fromLeft ? 'left' : 'right';
@@ -1568,7 +2243,9 @@ function spawnPickup(g, type){
 
 /* ------------------------------------------------------------------ pacing (DIFF-03) */
 function sawInterval(g){
-  return Math.max(CFG.hazardIntervalMin, CFG.hazardIntervalStart - g.elapsed * CFG.hazardIntervalRamp);
+  let t = Math.max(CFG.hazardIntervalMin, CFG.hazardIntervalStart - g.elapsed * CFG.hazardIntervalRamp);
+  if (g.daily) t = Math.max(dailyIntervalFloor(), t * g.daily.intervalMul);
+  return t;
 }
 
 function spikeInterval(g){
@@ -1603,7 +2280,9 @@ function updateSpawners(g, dt){
 
   g.starTimer -= dt;
   if (g.starTimer <= 0){
-    g.starTimer = spawnPickup(g, 'star') ? rand(CFG.starIntervalMin, CFG.starIntervalMax) : CFG.pickupRetry;
+    g.starTimer = spawnPickup(g, 'star')
+      ? rand(CFG.starIntervalMin, CFG.starIntervalMax) / (g.daily ? g.daily.starMul : 1)
+      : CFG.pickupRetry;
   }
 
   g.shieldTimer -= dt;
@@ -1707,15 +2386,26 @@ function outOfPlay(g, h){
   return h.x < -s || h.x > g.W + s || h.cy < -s || h.cy > g.H + s;
 }
 
-function consumeShield(g, h){
+function consumeShieldAt(g, x, y){
   g.shield = false;
-  h.gone = true;
-  burst(g, h.x, h.cy, '#4ecdc4', CFG.shieldPopBurst, CFG.shieldPopBurstSpeed);
-  addRing(g, h.x, h.cy, CFG.shieldPopRingR, CFG.shieldPopRingVr, CFG.shieldPopRingLife, 'rgba(78,205,196,0.8)');
+  g.shieldSaves++;
+  burst(g, x, y, '#4ecdc4', CFG.shieldPopBurst, CFG.shieldPopBurstSpeed);
+  addRing(g, x, y, CFG.shieldPopRingR, CFG.shieldPopRingVr, CFG.shieldPopRingLife, 'rgba(78,205,196,0.8)');
   g.ball.vy -= CFG.shieldPopVy;
   shakeBy(g, CFG.shieldPopShake);
-  addText(g, h.x, h.cy - CFG.saveTextDy, 'shield saved you!', '#4ecdc4');
+  addText(g, x, y - CFG.saveTextDy, 'shield saved you!', '#4ecdc4');
   Snd.shieldPop();                                  // PICK-05 distinct feedback
+}
+
+/* Shared by moving hazards and climb-mode band saws: shield absorbs, else death.
+ * Returns 'shield' | 'dead' | null (no contact). */
+function hazardStrike(g, x, y, r){
+  const b = g.ball;
+  const gap = Math.hypot(x - b.x, y - b.y) - (r + b.r * CFG.hazardKillPad);
+  if (gap >= 0) return null;
+  if (g.shield){ consumeShieldAt(g, x, y); return 'shield'; }
+  die(g);
+  return 'dead';
 }
 
 function nearMiss(g, h){
@@ -1729,8 +2419,7 @@ function resolveContact(g, h){
   const gap = Math.hypot(h.x - b.x, h.cy - b.y) - (h.r + b.r * CFG.hazardKillPad);
 
   if (gap < 0){
-    if (g.shield) consumeShield(g, h);
-    else die(g);
+    if (hazardStrike(g, h.x, h.cy, h.r) === 'shield') h.gone = true;
     return;
   }
   /* Phase 2 near-miss: gap was inside the margin last frame and is now widening */
@@ -1765,6 +2454,7 @@ function collectPickup(g, p){
   const color = pickupColor(p.type);
   if (p.type === 'star'){
     addScore(g, CFG.starPoints, p.x, p.y, color);          // PICK-01
+    g.starsRun++;
     Snd.star();
   } else if (p.type === 'heavy'){
     addScore(g, CFG.heavyPoints, p.x, p.y, color);         // risk/reward
@@ -2102,22 +2792,26 @@ function createRenderer(canvas){
   }
 
   /* --------------------------------------------------------------- hazards */
-  function drawSaw(h){
-    ctx.save();
-    ctx.translate(h.x, h.cy);
-    ctx.rotate(h.rot);
+  function drawSawBody(r){
     ctx.beginPath();
     const teeth = CFG.sawTeeth;
     for (let i = 0; i < teeth * 2; i++){
-      const rr = i % 2 ? h.r * SAW_INNER : h.r;
+      const rr = i % 2 ? r * SAW_INNER : r;
       const a = i / (teeth * 2) * TAU;
       ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
     }
     ctx.closePath();
     ctx.fillStyle = '#39415a'; ctx.fill();                 // HAZ-05 contrast pair
     ctx.strokeStyle = '#ff5d73'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, h.r * SAW_HUB, 0, TAU); ctx.fillStyle = '#ff5d73'; ctx.fill();
-    ctx.beginPath(); ctx.arc(0, 0, h.r * SAW_AXLE, 0, TAU); ctx.fillStyle = '#1a1e2b'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, r * SAW_HUB, 0, TAU); ctx.fillStyle = '#ff5d73'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, r * SAW_AXLE, 0, TAU); ctx.fillStyle = '#1a1e2b'; ctx.fill();
+  }
+
+  function drawSaw(h){
+    ctx.save();
+    ctx.translate(h.x, h.cy);
+    ctx.rotate(h.rot);
+    drawSawBody(h.r);
     ctx.restore();
   }
 
@@ -2224,7 +2918,7 @@ function createRenderer(canvas){
     for (let i = 0; i < b.trail.length; i++){
       const t = b.trail[i], f = i / b.trail.length;
       ctx.globalAlpha = f * CFG.trailAlpha * k;
-      ctx.fillStyle = '#ff8f8f';
+      ctx.fillStyle = (g.skin || SKINS[0]).trail;
       ctx.beginPath();
       ctx.arc(t.x, t.y, b.r * f * TRAIL_R, 0, TAU);
       ctx.fill();
@@ -2248,9 +2942,10 @@ function createRenderer(canvas){
     ctx.rotate(-b.dispAng);                 // PHYS-04: the face stays upright
 
     const grad = ctx.createRadialGradient(-b.r * 0.35, -b.r * 0.4, b.r * 0.15, 0, 0, b.r * 1.05);
-    grad.addColorStop(0, '#ffd9d0');
-    grad.addColorStop(0.45, '#ff6b6b');
-    grad.addColorStop(1, '#c9375c');
+    const sk = g.skin || SKINS[0];
+    grad.addColorStop(0, sk.hi);
+    grad.addColorStop(0.45, sk.mid);
+    grad.addColorStop(1, sk.lo);
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(0, 0, b.r, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(20,10,20,0.35)';
@@ -2358,6 +3053,76 @@ function createRenderer(canvas){
     }
   }
 
+  /* ------------------------------------------------------- climb (Phase 5) */
+  function drawBands(g){
+    const c = g.climb;
+    const halfSpan = CFG.climbBandSpacing * 0.42;
+    const top = c.camY - CFG.climbBandSpacing;
+    const bottom = c.camY + g.H + CFG.climbBandSpacing;
+    for (let i = 0; i < c.bands.length; i++){
+      const band = c.bands[i];
+      if (band.y < top || band.y > bottom) continue;   // only draw what can be seen
+
+      /* corridor hint: the guaranteed gap, drawn as a faint channel */
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = '#4ecdc4';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 10]);
+      ctx.beginPath();
+      ctx.moveTo(band.gapX - band.gapW / 2, band.y - halfSpan);
+      ctx.lineTo(band.gapX - band.gapW / 2, band.y + halfSpan);
+      ctx.moveTo(band.gapX + band.gapW / 2, band.y - halfSpan);
+      ctx.lineTo(band.gapX + band.gapW / 2, band.y + halfSpan);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      for (let s = 0; s < band.saws.length; s++){
+        const saw = band.saws[s];
+        ctx.save();
+        ctx.translate(saw.x, saw.y);
+        ctx.rotate(saw.rot);
+        drawSawBody(saw.r);
+        ctx.restore();
+      }
+      for (let it = 0; it < band.items.length; it++){
+        const p = band.items[it];
+        if (!p.alive) continue;
+        drawPickup(g, {
+          type: p.type, x: p.x, y: p.y, t: p.t, life: 99, pulled: false,
+          r: p.type === 'star' ? CFG.starR : CFG.shieldR,
+        });
+      }
+    }
+  }
+
+  function drawLava(g){
+    const c = g.climb;
+    const y = c.lavaY;
+    const bottom = c.camY + g.H + CFG.climbLavaWarn;
+    if (y - CFG.climbLavaWarn > bottom) return;
+
+    const warn = ctx.createLinearGradient(0, y - CFG.climbLavaWarn, 0, y);
+    warn.addColorStop(0, 'rgba(255,93,115,0)');
+    warn.addColorStop(1, 'rgba(255,93,115,0.4)');
+    ctx.fillStyle = warn;
+    ctx.fillRect(0, y - CFG.climbLavaWarn, g.W, CFG.climbLavaWarn);
+
+    const body = ctx.createLinearGradient(0, y, 0, y + CFG.climbLavaWarn * 2);
+    body.addColorStop(0, '#ff5d73');
+    body.addColorStop(1, '#701a28');
+    ctx.fillStyle = body;
+    ctx.fillRect(0, y, g.W, bottom - y + CFG.climbLavaWarn);
+
+    ctx.fillStyle = 'rgba(255,209,102,0.5)';
+    for (let i = 0; i < 6; i++){
+      const bx = ((i * 137.5 + g.totalT * 24) % (g.W + 40)) - 20;
+      const by = y + 4 + Math.sin(g.totalT * 3 + i) * 3;
+      ctx.beginPath(); ctx.arc(bx, by, 3 + (i % 3), 0, TAU); ctx.fill();
+    }
+  }
+
   /* ----------------------------------------------------------------- frame */
   function draw(g){
     drawBackground(g);
@@ -2368,11 +3133,23 @@ function createRenderer(canvas){
     }
 
     drawDots(g);
-    drawEdgeWarns(g);
-    drawFloor(g);
+
+    const climb = g.mode === 'climb' && g.climb;
+    /* Phase 5 camera: the world scrolls under a fixed HUD and background */
+    ctx.translate(0, climb ? -g.climb.camY : 0);
+
+    if (climb){
+      drawBands(g);
+      drawLava(g);
+    } else {
+      drawEdgeWarns(g);
+      drawFloor(g);
+    }
     drawRings(g);
-    for (let i = 0; i < g.pickups.length; i++) drawPickup(g, g.pickups[i]);
-    drawHazards(g);
+    if (!climb){
+      for (let i = 0; i < g.pickups.length; i++) drawPickup(g, g.pickups[i]);
+      drawHazards(g);
+    }
     if (!g.ball.dead){ drawTrail(g); drawBall(g); }
     drawParticles(g);
     drawTexts(g);
@@ -2427,11 +3204,27 @@ function bindInput(g){
   DOM.canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
 
   DOM.startBtn.addEventListener('click', function(){ startGame(g); });
+  DOM.climbBtn.addEventListener('click', function(){ startClimb(g); });
+  DOM.dailyBtn.addEventListener('click', function(){ startDaily(g); });
+  DOM.shareBtn.addEventListener('click', function(){ copyShare(shareText(g)); });
   DOM.retryBtn.addEventListener('click', function(){ startGame(g); });
   DOM.resumeBtn.addEventListener('click', function(){ resumeGame(g); });
   DOM.pauseQuitBtn.addEventListener('click', function(){ quitToMenu(g); });
   DOM.pauseBtn.addEventListener('click', function(){ togglePause(g); });
   DOM.muteBtn.addEventListener('click', function(){ Snd.ensure(); toggleMute(); });
+
+  /* Phase 4 skins: palette swaps, gated by best-score thresholds */
+  DOM.skins.addEventListener('click', function(e){
+    const btn = e.target && e.target.closest ? e.target.closest('.swatch') : null;
+    if (!btn) return;
+    const best = Math.max(0, Math.floor(LS.num(KEYS.best, 0)));
+    const skin = skinChoose(btn.getAttribute('data-skin'), best);
+    if (skin){
+      g.skin = skin;
+      renderMeta(g);
+      Snd.copy();
+    }
+  });
 
   window.addEventListener('keydown', function(e){
     /* A11Y-02: if a button has focus, Space/Enter belongs to that button */
@@ -2449,6 +3242,10 @@ function bindInput(g){
       Snd.ensure();
       togglePause(g);
       return;
+    }
+    if (g.state === 'menu' && !onButton(e)){
+      if (e.code === 'KeyC'){ Snd.ensure(); startClimb(g); return; }
+      if (e.code === 'KeyD'){ Snd.ensure(); startDaily(g); return; }
     }
     if (e.code === 'KeyM' || e.key === 'm' || e.key === 'M'){   // AUD-05
       Snd.ensure();
@@ -2518,6 +3315,7 @@ function update(g, dtReal){
   const physDt = hitStopActive ? 0 : dtReal * g.timeScale;
 
   updateFx(g, fxDt);
+  achTick(g, fxDt);                       // Phase 4: badge conditions + toast clock
   if (g.state === 'over') return;                // tableau behind the panel, as in the prototype
 
   const playing = g.state === 'play';
@@ -2540,15 +3338,24 @@ function update(g, dtReal){
   if (!parked && physDt > 0) updateBall(g, physDt, gravity);
 
   if (playing){
-    if (ballHitFloor(g)){ die(g); return; }      // CORE-04
-    if (g.combo > 0){
-      g.comboTimer -= physDt;
-      if (g.comboTimer <= 0) g.combo = 0;        // SCORE-02 expiry
+    if (g.mode === 'climb'){
+      /* Phase 5: bands, lava and the metre score replace the classic spawners */
+      if (physDt > 0 && climbUpdate(g, physDt)) return;
+      if (g.combo > 0){
+        g.comboTimer -= physDt;
+        if (g.comboTimer <= 0) g.combo = 0;
+      }
+    } else {
+      if (ballHitFloor(g)){ die(g); return; }      // CORE-04
+      if (g.combo > 0){
+        g.comboTimer -= physDt;
+        if (g.comboTimer <= 0) g.combo = 0;        // SCORE-02 expiry
+      }
+      updateSpawners(g, physDt);
     }
-    updateSpawners(g, physDt);
   }
 
-  if (physDt > 0){
+  if (physDt > 0 && g.mode !== 'climb'){
     updateHazards(g, physDt);
     updatePickups(g, physDt);
   }
@@ -2609,12 +3416,14 @@ function boot(){
   try {
     LS.probe();
     G.reducedMotion = detectReducedMotion();
+    applyCssKnobs();
     R = createRenderer(DOM.canvas);
     R.resize(G);
     loadPersisted(G);
+    G.skin = skinLoad();
     resetHudCache();
     resetRun(G);
-    showMenu();
+    showMenu(G);
     bindInput(G);
     window.addEventListener('resize', onResize);
     installErrorSurface();
@@ -2633,11 +3442,20 @@ function boot(){
           shakeBy: shakeBy, addEdgeWarn: addEdgeWarn, updateFx: updateFx,
         },
         startGame: startGame, die: die, tryRestart: tryRestart, tickEffects: tickEffects,
+        startRun: startRun, startDaily: startDaily, startClimb: startClimb, shareText: shareText,
+        climbInit: climbInit, climbUpdate: climbUpdate,
+        climbMakeBand: climbMakeBand, climbBandValid: climbBandValid, climbBandY: climbBandY,
+        achTick: achTick, achHas: achHas, achCount: achCount, achReset: achReset, achUnlock: achUnlock,
+        achCurrentToast: achCurrentToast,
+        ACH: ACH, SKINS: SKINS, skinLoad: skinLoad, skinChoose: skinChoose, skinIsUnlocked: skinIsUnlocked,
+        dailyKey: dailyKey, dailyMods: dailyMods, dailyLabel: dailyLabel,
+        dailyBestGet: dailyBestGet, dailyBestSet: dailyBestSet,
         pauseGame: pauseGame, resumeGame: resumeGame, togglePause: togglePause,
         quitToMenu: quitToMenu, toggleMute: toggleMute, updateFlow: updateFlow,
         attemptBounce: attemptBounce, gravityNow: gravityNow, resetRun: resetRun,
         spawnSaw: spawnSaw, spawnSpike: spawnSpike, spawnSeeker: spawnSeeker,
-        spawnPickup: spawnPickup, updateSpawners: updateSpawners,
+        spawnPickup: spawnPickup, updateSpawners: updateSpawners, sawInterval: sawInterval,
+        copyShare: copyShare, renderMeta: renderMeta,
         updateHazards: updateHazards, updatePickups: updatePickups,
         collectPickup: collectPickup, updateBall: updateBall, updateHud: updateHud,
         showFatal: showFatal,

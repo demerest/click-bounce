@@ -288,9 +288,59 @@ export const CFG = {
   throttleNearMiss: 0.3,
   throttleWarn: 0.25,
   throttleSeeker: 0.4,
+
+  /* ---------------- achievements (Phase 4) ---------------- */
+  achToastTime: 3.2,            // seconds a badge toast stays up
+  achToastIn: 0.35,
+  achToastGap: 0.3,             // pause between queued toasts
+  achToastCap: 4,               // pillar 4: the queue is bounded
+  achStars: 3,                  // "3 stars in one run"
+  achSurvive: 120,              // "survive 120 s"
+
+  /* ---------------- skins (Phase 4): unlock by best-score threshold ---------------- */
+  skinUnlock: [0, 600, 1800, 4000],
+
+  /* ---------------- daily challenge (Phase 4) ---------------- */
+  dailyGravityMin: 0.85,        // seeded multipliers, all bounded (pillar 4)
+  dailyGravityMax: 1.2,
+  dailyIntervalMin: 0.8,
+  dailyIntervalMax: 1.25,
+  dailySawSpeedMin: 0.85,
+  dailySawSpeedMax: 1.3,
+  dailyGraceMin: 6,
+  dailyGraceMax: 12,
+  dailyStarMin: 0.7,
+  dailyStarMax: 1.4,
+
+  /* ---------------- climb mode (Phase 5) ---------------- */
+  climbBandSpacing: 300,        // one procedural band per this many px of height
+  climbCorridorMin: 150,        // guaranteed passable gap width (pillar 3)
+  climbMaxLateral: 260,         // max corridor shift between consecutive bands
+  climbEdgePad: 40,
+  climbSawR: 22,
+  climbSawPad: 2,
+  climbSawsPerBandMax: 10,      // pillar 4
+  climbBandAhead: 1.5,          // screens of bands generated above the viewport
+  climbBandCap: 8,              // pillar 4: live bands kept in memory
+  climbHazardCap: 80,           // pillar 4: bandCap * sawsPerBandMax, the hard ceiling
+  climbStarDrop: 46,            // star sits this far above its band line
+  climbStarMeters: 5,           // a climb star is worth this many metres
+  climbShieldEvery: 3,          // every Nth band also hides a shield in its corridor
+  climbPixelsPerMeter: 40,
+  climbCamLead: 0.45,           // max height rests at this fraction of the view
+  climbLavaStart: 520,          // lava begins this far below the start
+  climbLavaGrace: 3,            // seconds before the lava starts rising
+  climbLavaSpeedBase: 26,
+  climbLavaSpeedRamp: 0.35,
+  climbLavaSpeedMax: 70,        // pillar 4 cap
+  climbLavaWarn: 140,           // glow height above the lava line
 };
 
 export const KEYS = {
   best: 'keepup.best',
+  bestClimb: 'keepup.best.climb',
   mute: 'keepup.muted',
+  ach: 'keepup.ach',
+  skin: 'keepup.skin',
+  daily: 'keepup.daily.',       // + YYYY-MM-DD
 };

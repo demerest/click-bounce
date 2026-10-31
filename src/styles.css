@@ -111,10 +111,42 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
   max-width:90vw; font-family:var(--mono); font-size:12px; color:#181206; background:var(--hot);
   border:2px solid #7a1f2b; padding:10px 14px; white-space:pre-wrap;}
 
+/* ---------- Phase 4: toasts, badges, skins, daily, modes ---------- */
+.unit{font-family:var(--mono); font-size:clamp(16px,3vw,24px); font-weight:900; color:var(--dim); margin-left:4px;}
+#toasts{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:30;
+  pointer-events:none; display:flex; flex-direction:column; align-items:center; gap:8px;}
+.toast{font-family:var(--mono); text-align:center; background:var(--panel);
+  border:3px solid var(--cool); border-left-width:8px; padding:9px 18px;
+  box-shadow:8px 9px 0 rgba(0,0,0,.45); opacity:0; transform:translateY(24px) scale(.92);
+  transition:opacity var(--toast-in,.3s) cubic-bezier(.2,1.4,.4,1),
+             transform var(--toast-in,.3s) cubic-bezier(.2,1.4,.4,1);}
+.toast b{display:block; font-size:14px; letter-spacing:.18em; color:var(--cool);}
+.toast span{display:block; font-size:11px; color:var(--dim); margin-top:2px;}
+.toast.show{opacity:1; transform:none;}
+.swatches{display:flex; gap:8px; justify-content:center; margin:0 0 10px;}
+.swatch{width:34px; height:34px; border-radius:50%; cursor:pointer; position:relative;
+  border:3px solid var(--line); background:radial-gradient(circle at 32% 30%, var(--hi), var(--mid) 55%, var(--lo));
+  transition:transform .08s;}
+.swatch:hover{transform:scale(1.1);}
+.swatch[aria-pressed="true"]{border-color:var(--ink); box-shadow:0 0 0 2px rgba(245,247,255,.25);}
+.swatch.locked{filter:grayscale(.9) brightness(.55); cursor:not-allowed;}
+.swatch.locked::after{content:'\1F512'; position:absolute; inset:0; display:flex;
+  align-items:center; justify-content:center; font-size:13px;}
+.badges{display:flex; gap:8px; justify-content:center; margin:0 0 12px;}
+.badge{width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:14px; background:#0f1420; border:2px solid var(--line); color:#3c4356;}
+.badge.on{background:var(--accent); border-color:#b98f2e; color:#181206;
+  box-shadow:0 0 10px rgba(255,209,102,.45);}
+.daily{font-family:var(--mono); font-size:11px; letter-spacing:.06em; color:var(--violet);
+  text-align:center; margin:0 0 10px;}
+.modes{display:flex; gap:10px; margin-top:10px;}
+.modes .ghost{margin-top:0;}
+
 /* ---------- A11Y-01: prefers-reduced-motion ---------- */
 @media (prefers-reduced-motion: reduce){
   .demo-ball,.demo-shadow,.panel,#newBest,#score.pop{animation:none;}
   button.big,button.big:hover,button.big:active{transition:none; transform:none;}
+  .toast,.swatch,.swatch:hover{transition:none; transform:none;}
   #comboBox{transition:none;}
 }
 

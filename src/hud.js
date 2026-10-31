@@ -2,9 +2,13 @@
  * DOM writes are cached: we only touch the document when a value actually changed.
  */
 
-import { CFG } from './config.js';
+import { CFG, KEYS } from './config.js';
 import { DOM } from './dom.js';
+import { LS } from './storage.js';
 import { Snd } from './audio.js';
+import { ACH, achCurrentToast, achDef, achHas } from './achievements.js';
+import { SKINS, skinIsUnlocked, skinThreshold } from './skins.js';
+import { dailyBestGet, dailyKey, dailyLabel, dailyMods } from './daily.js';
 
 let hudScore = -1;
 let hudBest = -1;
@@ -12,6 +16,8 @@ let hudCombo = -1;
 let hudComboWidth = -1;
 let hudFxKey = '';
 let hudPauseState = '';
+let hudToastId = '';
+let hudUnitState = '';
 
 function focusEl(el){
   if (el && typeof el.focus === 'function'){
@@ -25,9 +31,10 @@ export function hideOverlays(){
   DOM.over.classList.add('hidden');
 }
 
-export function showMenu(){
+export function showMenu(g){
   hideOverlays();
   DOM.menu.classList.remove('hidden');
+  if (g) renderMeta(g);
   focusEl(DOM.startBtn);
 }
 
@@ -41,12 +48,15 @@ export function showPause(g){
 }
 
 export function fillGameOver(g){
+  DOM.overEyebrow.textContent = g.mode === 'climb' ? 'THE LAVA WINS'
+    : g.daily ? 'DAILY ' + g.daily.key : 'GRAVITY WINS';
   DOM.finalScoreVal.textContent = g.score;
   DOM.newBest.style.display = g.newBest ? 'inline-block' : 'none';
   DOM.finalBounces.textContent = g.bounces;
   DOM.finalCombo.textContent = '\u00d7' + Math.min(g.maxCombo, CFG.comboCap);
   DOM.finalTime.textContent = Math.floor(g.elapsed) + 's';
   DOM.finalBest.textContent = g.best;
+  DOM.shareBtn.textContent = 'COPY SCORE';
 }
 
 export function showGameOver(g){
@@ -120,7 +130,103 @@ export function updateHud(g){
     DOM.effects.innerHTML = fx;
   }
 
+  const unit = g.mode === 'climb' ? 'm' : '';
+  if (unit !== hudUnitState){
+    hudUnitState = unit;
+    DOM.scoreUnit.textContent = unit;
+    DOM.scoreUnit.classList.toggle('hidden', !unit);
+  }
+
+  updateToast();
   syncPauseButton(g);
+}
+
+/* Phase 4 badge toast: pure CSS animation, JS only swaps content and the class. */
+function updateToast(){
+  const t = achCurrentToast();
+  const id = t ? t.id : '';
+  if (id === hudToastId) return;
+  hudToastId = id;
+  if (!t){
+    DOM.toast.classList.remove('show');
+    return;
+  }
+  const def = achDef(id);
+  DOM.toastName.textContent = def ? def.name : id;
+  DOM.toastDesc.textContent = def ? def.desc : '';
+  DOM.toast.classList.remove('show');
+  void DOM.toast.offsetWidth;
+  DOM.toast.classList.add('show');
+}
+
+/* Menu furniture: earned badges, skin swatches, today's daily mix. */
+export function renderMeta(g){
+  const best = Math.max(0, Math.floor(LS.num(KEYS.best, 0)));
+
+  let bhtml = '';
+  for (let i = 0; i < ACH.length; i++){
+    const a = ACH[i];
+    const on = achHas(a.id);
+    bhtml += '<span class="badge' + (on ? ' on' : '') + '" title="' + a.desc + '"'
+          +  ' aria-label="Badge ' + a.name + ': ' + a.desc + (on ? ', unlocked' : ', locked') + '">'
+          +  (on ? '\u2605' : '\u00b7') + '</span>';
+  }
+  DOM.badges.innerHTML = bhtml;
+
+  let shtml = '';
+  for (let i = 0; i < SKINS.length; i++){
+    const s = SKINS[i];
+    const un = skinIsUnlocked(i, best);
+    const sel = !!(g.skin && g.skin.id === s.id);
+    shtml += '<button type="button" class="swatch' + (un ? '' : ' locked') + '" data-skin="' + s.id + '"'
+          +  ' style="--hi:' + s.hi + ';--mid:' + s.mid + ';--lo:' + s.lo + '"'
+          +  ' aria-pressed="' + (sel ? 'true' : 'false') + '"'
+          +  ' title="' + s.name + (un ? '' : ' \u2014 unlocks at ' + skinThreshold(i)) + '"'
+          +  ' aria-label="Skin ' + s.name + (un ? '' : ', locked, unlocks at ' + skinThreshold(i)) + '"></button>';
+  }
+  DOM.skins.innerHTML = shtml;
+
+  const key = dailyKey();
+  DOM.dailyStrip.textContent = 'DAILY ' + key + ' \u00b7 ' + dailyLabel(dailyMods(key))
+                             + ' \u00b7 best ' + dailyBestGet(key);
+}
+
+/* Phase 4 share: clipboard only, never the network (PORT-01 / DATA-01). */
+function fallbackCopy(text){
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!ok;
+  } catch (e){ return false; }
+}
+
+export function copyShare(text){
+  const finish = ok => {
+    DOM.shareBtn.textContent = ok ? 'COPIED!' : 'COPY FAILED';
+    if (ok) Snd.copy();
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(
+      function(){ finish(true); },
+      function(){ finish(fallbackCopy(text)); }
+    );
+  } else {
+    finish(fallbackCopy(text));
+  }
+}
+
+/* CFG drives the CSS toast timing too, so the knob stays single-sourced. */
+export function applyCssKnobs(){
+  try {
+    document.documentElement.style.setProperty('--toast-in', CFG.achToastIn + 's');
+  } catch (e){ /* CSS variables unsupported: the stylesheet fallback applies */ }
 }
 
 /* Called once at boot so a cached value can never hide a real change. */

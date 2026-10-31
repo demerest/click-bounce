@@ -9,6 +9,7 @@
 
 import { CFG } from './config.js';
 import { Snd } from './audio.js';
+import { dailyIntervalFloor } from './daily.js';
 import { addEdgeWarn } from './fx.js';
 import { clamp, rand, TAU } from './math.js';
 import { countKind } from './state.js';
@@ -47,8 +48,13 @@ export function spawnSaw(g){
   if (!roomFor(g)) return null;
   const fromLeft = Math.random() < 0.5;
   const y = rollSafeY(g, g.H * CFG.sawSpawnYMinFrac, g.H * CFG.sawSpawnYMaxFrac);
-  const speed = rand(CFG.sawSpeedMin, CFG.sawSpeedMax)
-              + Math.min(CFG.sawSpeedRampCap, g.elapsed * CFG.sawSpeedRamp);   // DIFF-04
+  let speed = rand(CFG.sawSpeedMin, CFG.sawSpeedMax)
+            + Math.min(CFG.sawSpeedRampCap, g.elapsed * CFG.sawSpeedRamp);   // DIFF-04
+  /* the daily seed scales speed, but the product stays capped (pillar 4) */
+  if (g.daily){
+    speed = Math.min(speed * g.daily.sawSpeedMul,
+                     (CFG.sawSpeedMax + CFG.sawSpeedRampCap) * CFG.dailySawSpeedMax);
+  }
   const edgeX = fromLeft ? -CFG.spawnOffscreen : g.W + CFG.spawnOffscreen;
   const extra = offscreenStart(g, edgeX, speed);
   const side = fromLeft ? 'left' : 'right';
@@ -174,7 +180,9 @@ export function spawnPickup(g, type){
 
 /* ------------------------------------------------------------------ pacing (DIFF-03) */
 export function sawInterval(g){
-  return Math.max(CFG.hazardIntervalMin, CFG.hazardIntervalStart - g.elapsed * CFG.hazardIntervalRamp);
+  let t = Math.max(CFG.hazardIntervalMin, CFG.hazardIntervalStart - g.elapsed * CFG.hazardIntervalRamp);
+  if (g.daily) t = Math.max(dailyIntervalFloor(), t * g.daily.intervalMul);
+  return t;
 }
 
 export function spikeInterval(g){
@@ -209,7 +217,9 @@ export function updateSpawners(g, dt){
 
   g.starTimer -= dt;
   if (g.starTimer <= 0){
-    g.starTimer = spawnPickup(g, 'star') ? rand(CFG.starIntervalMin, CFG.starIntervalMax) : CFG.pickupRetry;
+    g.starTimer = spawnPickup(g, 'star')
+      ? rand(CFG.starIntervalMin, CFG.starIntervalMax) / (g.daily ? g.daily.starMul : 1)
+      : CFG.pickupRetry;
   }
 
   g.shieldTimer -= dt;

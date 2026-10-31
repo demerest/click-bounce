@@ -9,6 +9,7 @@
 
 import { CFG } from './config.js';
 import { clamp, TAU } from './math.js';
+import { SKINS } from './skins.js';
 
 const EYE_X = 0.32, EYE_Y = -0.12, EYE_RX = 0.2, EYE_RY = 0.26, PUPIL_R = 0.09;
 const MOUTH_Y = 0.22, MOUTH_R = 0.22;
@@ -281,22 +282,26 @@ export function createRenderer(canvas){
   }
 
   /* --------------------------------------------------------------- hazards */
-  function drawSaw(h){
-    ctx.save();
-    ctx.translate(h.x, h.cy);
-    ctx.rotate(h.rot);
+  function drawSawBody(r){
     ctx.beginPath();
     const teeth = CFG.sawTeeth;
     for (let i = 0; i < teeth * 2; i++){
-      const rr = i % 2 ? h.r * SAW_INNER : h.r;
+      const rr = i % 2 ? r * SAW_INNER : r;
       const a = i / (teeth * 2) * TAU;
       ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
     }
     ctx.closePath();
     ctx.fillStyle = '#39415a'; ctx.fill();                 // HAZ-05 contrast pair
     ctx.strokeStyle = '#ff5d73'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, h.r * SAW_HUB, 0, TAU); ctx.fillStyle = '#ff5d73'; ctx.fill();
-    ctx.beginPath(); ctx.arc(0, 0, h.r * SAW_AXLE, 0, TAU); ctx.fillStyle = '#1a1e2b'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, r * SAW_HUB, 0, TAU); ctx.fillStyle = '#ff5d73'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, r * SAW_AXLE, 0, TAU); ctx.fillStyle = '#1a1e2b'; ctx.fill();
+  }
+
+  function drawSaw(h){
+    ctx.save();
+    ctx.translate(h.x, h.cy);
+    ctx.rotate(h.rot);
+    drawSawBody(h.r);
     ctx.restore();
   }
 
@@ -403,7 +408,7 @@ export function createRenderer(canvas){
     for (let i = 0; i < b.trail.length; i++){
       const t = b.trail[i], f = i / b.trail.length;
       ctx.globalAlpha = f * CFG.trailAlpha * k;
-      ctx.fillStyle = '#ff8f8f';
+      ctx.fillStyle = (g.skin || SKINS[0]).trail;
       ctx.beginPath();
       ctx.arc(t.x, t.y, b.r * f * TRAIL_R, 0, TAU);
       ctx.fill();
@@ -427,9 +432,10 @@ export function createRenderer(canvas){
     ctx.rotate(-b.dispAng);                 // PHYS-04: the face stays upright
 
     const grad = ctx.createRadialGradient(-b.r * 0.35, -b.r * 0.4, b.r * 0.15, 0, 0, b.r * 1.05);
-    grad.addColorStop(0, '#ffd9d0');
-    grad.addColorStop(0.45, '#ff6b6b');
-    grad.addColorStop(1, '#c9375c');
+    const sk = g.skin || SKINS[0];
+    grad.addColorStop(0, sk.hi);
+    grad.addColorStop(0.45, sk.mid);
+    grad.addColorStop(1, sk.lo);
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(0, 0, b.r, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(20,10,20,0.35)';
@@ -537,6 +543,76 @@ export function createRenderer(canvas){
     }
   }
 
+  /* ------------------------------------------------------- climb (Phase 5) */
+  function drawBands(g){
+    const c = g.climb;
+    const halfSpan = CFG.climbBandSpacing * 0.42;
+    const top = c.camY - CFG.climbBandSpacing;
+    const bottom = c.camY + g.H + CFG.climbBandSpacing;
+    for (let i = 0; i < c.bands.length; i++){
+      const band = c.bands[i];
+      if (band.y < top || band.y > bottom) continue;   // only draw what can be seen
+
+      /* corridor hint: the guaranteed gap, drawn as a faint channel */
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = '#4ecdc4';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 10]);
+      ctx.beginPath();
+      ctx.moveTo(band.gapX - band.gapW / 2, band.y - halfSpan);
+      ctx.lineTo(band.gapX - band.gapW / 2, band.y + halfSpan);
+      ctx.moveTo(band.gapX + band.gapW / 2, band.y - halfSpan);
+      ctx.lineTo(band.gapX + band.gapW / 2, band.y + halfSpan);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      for (let s = 0; s < band.saws.length; s++){
+        const saw = band.saws[s];
+        ctx.save();
+        ctx.translate(saw.x, saw.y);
+        ctx.rotate(saw.rot);
+        drawSawBody(saw.r);
+        ctx.restore();
+      }
+      for (let it = 0; it < band.items.length; it++){
+        const p = band.items[it];
+        if (!p.alive) continue;
+        drawPickup(g, {
+          type: p.type, x: p.x, y: p.y, t: p.t, life: 99, pulled: false,
+          r: p.type === 'star' ? CFG.starR : CFG.shieldR,
+        });
+      }
+    }
+  }
+
+  function drawLava(g){
+    const c = g.climb;
+    const y = c.lavaY;
+    const bottom = c.camY + g.H + CFG.climbLavaWarn;
+    if (y - CFG.climbLavaWarn > bottom) return;
+
+    const warn = ctx.createLinearGradient(0, y - CFG.climbLavaWarn, 0, y);
+    warn.addColorStop(0, 'rgba(255,93,115,0)');
+    warn.addColorStop(1, 'rgba(255,93,115,0.4)');
+    ctx.fillStyle = warn;
+    ctx.fillRect(0, y - CFG.climbLavaWarn, g.W, CFG.climbLavaWarn);
+
+    const body = ctx.createLinearGradient(0, y, 0, y + CFG.climbLavaWarn * 2);
+    body.addColorStop(0, '#ff5d73');
+    body.addColorStop(1, '#701a28');
+    ctx.fillStyle = body;
+    ctx.fillRect(0, y, g.W, bottom - y + CFG.climbLavaWarn);
+
+    ctx.fillStyle = 'rgba(255,209,102,0.5)';
+    for (let i = 0; i < 6; i++){
+      const bx = ((i * 137.5 + g.totalT * 24) % (g.W + 40)) - 20;
+      const by = y + 4 + Math.sin(g.totalT * 3 + i) * 3;
+      ctx.beginPath(); ctx.arc(bx, by, 3 + (i % 3), 0, TAU); ctx.fill();
+    }
+  }
+
   /* ----------------------------------------------------------------- frame */
   function draw(g){
     drawBackground(g);
@@ -547,11 +623,23 @@ export function createRenderer(canvas){
     }
 
     drawDots(g);
-    drawEdgeWarns(g);
-    drawFloor(g);
+
+    const climb = g.mode === 'climb' && g.climb;
+    /* Phase 5 camera: the world scrolls under a fixed HUD and background */
+    ctx.translate(0, climb ? -g.climb.camY : 0);
+
+    if (climb){
+      drawBands(g);
+      drawLava(g);
+    } else {
+      drawEdgeWarns(g);
+      drawFloor(g);
+    }
     drawRings(g);
-    for (let i = 0; i < g.pickups.length; i++) drawPickup(g, g.pickups[i]);
-    drawHazards(g);
+    if (!climb){
+      for (let i = 0; i < g.pickups.length; i++) drawPickup(g, g.pickups[i]);
+      drawHazards(g);
+    }
     if (!g.ball.dead){ drawTrail(g); drawBall(g); }
     drawParticles(g);
     drawTexts(g);

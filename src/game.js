@@ -11,12 +11,16 @@ import { Snd } from './audio.js';
 import { createGame, gravityNow, resetRun } from './state.js';
 import { addEdgeWarn, addRing, addScore, addText, burst, shakeBy, updateFx } from './fx.js';
 import { attemptBounce, ballHitFloor, updateBall } from './ball.js';
-import { spawnPickup, spawnSaw, spawnSeeker, spawnSpike, updateSpawners } from './spawn.js';
+import { spawnPickup, spawnSaw, spawnSeeker, spawnSpike, sawInterval, updateSpawners } from './spawn.js';
 import { collectPickup, updateHazards, updatePickups } from './entities.js';
-import { die, loadPersisted, pauseGame, quitToMenu, resumeGame, startGame, toggleMute, togglePause, tryRestart, updateFlow } from './flow.js';
+import { die, loadPersisted, pauseGame, quitToMenu, resumeGame, shareText, startClimb, startDaily, startGame, startRun, toggleMute, togglePause, tryRestart, updateFlow } from './flow.js';
 import { createRenderer } from './render.js';
-import { resetHudCache, showMenu, updateHud } from './hud.js';
+import { resetHudCache, showMenu, updateHud, applyCssKnobs, copyShare, renderMeta } from './hud.js';
 import { bindInput } from './input.js';
+import { ACH, achCount, achHas, achReset, achTick, achUnlock } from './achievements.js';
+import { SKINS, skinChoose, skinIsUnlocked, skinLoad } from './skins.js';
+import { climbBandValid, climbBandY, climbInit, climbMakeBand, climbUpdate } from './climb.js';
+import { dailyBestGet, dailyBestSet, dailyKey, dailyLabel, dailyMods } from './daily.js';
 
 export const G = createGame();
 let R = null;
@@ -64,6 +68,7 @@ export function update(g, dtReal){
   const physDt = hitStopActive ? 0 : dtReal * g.timeScale;
 
   updateFx(g, fxDt);
+  achTick(g, fxDt);                       // Phase 4: badge conditions + toast clock
   if (g.state === 'over') return;                // tableau behind the panel, as in the prototype
 
   const playing = g.state === 'play';
@@ -86,15 +91,24 @@ export function update(g, dtReal){
   if (!parked && physDt > 0) updateBall(g, physDt, gravity);
 
   if (playing){
-    if (ballHitFloor(g)){ die(g); return; }      // CORE-04
-    if (g.combo > 0){
-      g.comboTimer -= physDt;
-      if (g.comboTimer <= 0) g.combo = 0;        // SCORE-02 expiry
+    if (g.mode === 'climb'){
+      /* Phase 5: bands, lava and the metre score replace the classic spawners */
+      if (physDt > 0 && climbUpdate(g, physDt)) return;
+      if (g.combo > 0){
+        g.comboTimer -= physDt;
+        if (g.comboTimer <= 0) g.combo = 0;
+      }
+    } else {
+      if (ballHitFloor(g)){ die(g); return; }      // CORE-04
+      if (g.combo > 0){
+        g.comboTimer -= physDt;
+        if (g.comboTimer <= 0) g.combo = 0;        // SCORE-02 expiry
+      }
+      updateSpawners(g, physDt);
     }
-    updateSpawners(g, physDt);
   }
 
-  if (physDt > 0){
+  if (physDt > 0 && g.mode !== 'climb'){
     updateHazards(g, physDt);
     updatePickups(g, physDt);
   }
@@ -155,12 +169,14 @@ export function boot(){
   try {
     LS.probe();
     G.reducedMotion = detectReducedMotion();
+    applyCssKnobs();
     R = createRenderer(DOM.canvas);
     R.resize(G);
     loadPersisted(G);
+    G.skin = skinLoad();
     resetHudCache();
     resetRun(G);
-    showMenu();
+    showMenu(G);
     bindInput(G);
     window.addEventListener('resize', onResize);
     installErrorSurface();
@@ -179,11 +195,20 @@ export function boot(){
           shakeBy: shakeBy, addEdgeWarn: addEdgeWarn, updateFx: updateFx,
         },
         startGame: startGame, die: die, tryRestart: tryRestart, tickEffects: tickEffects,
+        startRun: startRun, startDaily: startDaily, startClimb: startClimb, shareText: shareText,
+        climbInit: climbInit, climbUpdate: climbUpdate,
+        climbMakeBand: climbMakeBand, climbBandValid: climbBandValid, climbBandY: climbBandY,
+        achTick: achTick, achHas: achHas, achCount: achCount, achReset: achReset, achUnlock: achUnlock,
+        achCurrentToast: achCurrentToast,
+        ACH: ACH, SKINS: SKINS, skinLoad: skinLoad, skinChoose: skinChoose, skinIsUnlocked: skinIsUnlocked,
+        dailyKey: dailyKey, dailyMods: dailyMods, dailyLabel: dailyLabel,
+        dailyBestGet: dailyBestGet, dailyBestSet: dailyBestSet,
         pauseGame: pauseGame, resumeGame: resumeGame, togglePause: togglePause,
         quitToMenu: quitToMenu, toggleMute: toggleMute, updateFlow: updateFlow,
         attemptBounce: attemptBounce, gravityNow: gravityNow, resetRun: resetRun,
         spawnSaw: spawnSaw, spawnSpike: spawnSpike, spawnSeeker: spawnSeeker,
-        spawnPickup: spawnPickup, updateSpawners: updateSpawners,
+        spawnPickup: spawnPickup, updateSpawners: updateSpawners, sawInterval: sawInterval,
+        copyShare: copyShare, renderMeta: renderMeta,
         updateHazards: updateHazards, updatePickups: updatePickups,
         collectPickup: collectPickup, updateBall: updateBall, updateHud: updateHud,
         showFatal: showFatal,

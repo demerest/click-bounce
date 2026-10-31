@@ -41,8 +41,9 @@ $cssFile = Join-Path $srcDir 'styles.css'
 # Bundle order. Function declarations hoist, so only const/let initialisers care
 # about order: config and math must precede game.js, which builds the game object.
 $order = @(
-  'config.js','math.js','storage.js','dom.js','audio.js','state.js','fx.js','ball.js',
-  'hud.js','flow.js','spawn.js','entities.js','render.js','input.js','game.js'
+  'config.js','math.js','rng.js','storage.js','dom.js','audio.js','state.js','fx.js','ball.js',
+  'achievements.js','skins.js','daily.js','hud.js','flow.js','climb.js','spawn.js','entities.js',
+  'render.js','input.js','game.js'
 )
 
 function Read-Text([string]$path) {

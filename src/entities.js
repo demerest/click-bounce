@@ -77,15 +77,26 @@ function outOfPlay(g, h){
   return h.x < -s || h.x > g.W + s || h.cy < -s || h.cy > g.H + s;
 }
 
-function consumeShield(g, h){
+function consumeShieldAt(g, x, y){
   g.shield = false;
-  h.gone = true;
-  burst(g, h.x, h.cy, '#4ecdc4', CFG.shieldPopBurst, CFG.shieldPopBurstSpeed);
-  addRing(g, h.x, h.cy, CFG.shieldPopRingR, CFG.shieldPopRingVr, CFG.shieldPopRingLife, 'rgba(78,205,196,0.8)');
+  g.shieldSaves++;
+  burst(g, x, y, '#4ecdc4', CFG.shieldPopBurst, CFG.shieldPopBurstSpeed);
+  addRing(g, x, y, CFG.shieldPopRingR, CFG.shieldPopRingVr, CFG.shieldPopRingLife, 'rgba(78,205,196,0.8)');
   g.ball.vy -= CFG.shieldPopVy;
   shakeBy(g, CFG.shieldPopShake);
-  addText(g, h.x, h.cy - CFG.saveTextDy, 'shield saved you!', '#4ecdc4');
+  addText(g, x, y - CFG.saveTextDy, 'shield saved you!', '#4ecdc4');
   Snd.shieldPop();                                  // PICK-05 distinct feedback
+}
+
+/* Shared by moving hazards and climb-mode band saws: shield absorbs, else death.
+ * Returns 'shield' | 'dead' | null (no contact). */
+export function hazardStrike(g, x, y, r){
+  const b = g.ball;
+  const gap = Math.hypot(x - b.x, y - b.y) - (r + b.r * CFG.hazardKillPad);
+  if (gap >= 0) return null;
+  if (g.shield){ consumeShieldAt(g, x, y); return 'shield'; }
+  die(g);
+  return 'dead';
 }
 
 function nearMiss(g, h){
@@ -99,8 +110,7 @@ function resolveContact(g, h){
   const gap = Math.hypot(h.x - b.x, h.cy - b.y) - (h.r + b.r * CFG.hazardKillPad);
 
   if (gap < 0){
-    if (g.shield) consumeShield(g, h);
-    else die(g);
+    if (hazardStrike(g, h.x, h.cy, h.r) === 'shield') h.gone = true;
     return;
   }
   /* Phase 2 near-miss: gap was inside the margin last frame and is now widening */
@@ -135,6 +145,7 @@ export function collectPickup(g, p){
   const color = pickupColor(p.type);
   if (p.type === 'star'){
     addScore(g, CFG.starPoints, p.x, p.y, color);          // PICK-01
+    g.starsRun++;
     Snd.star();
   } else if (p.type === 'heavy'){
     addScore(g, CFG.heavyPoints, p.x, p.y, color);         // risk/reward

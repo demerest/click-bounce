@@ -107,6 +107,13 @@ async function main(){
   const CFG = K.CFG;
   const fatal = () => { const e = doc.getElementById('fatal'); return e && !e.classList.contains('hidden') ? e.textContent : null; };
 
+  /* The Chrome profile is reused between verify runs, so wipe the game's own
+   * storage first - otherwise a previous run's best score breaks NEW BEST. */
+  ['best', 'bestClimb', 'mute', 'ach', 'skin'].forEach(k => {
+    try { win.localStorage.removeItem(K.KEYS[k]); } catch (e){ /* blocked storage */ }
+  });
+  K.achReset();
+
   ok(!fatal(), 'bundle boots with no fatal error', fatal());
 
   /* ======================================================= 1. boot & shell */
@@ -894,11 +901,19 @@ async function main(){
   ok(!!mdoc, 'dev.html loaded over http');
   ok(!mfatal || mfatal.classList.contains('hidden'), 'dev.html has no fatal banner',
      mfatal && mfatal.textContent);
-  const mctx = mdoc.getElementById('game').getContext('2d');
-  let msum = 0;
-  try { msum = Array.from(mctx.getImageData(0, 120, 200, 1).data).reduce((a, b) => a + b, 0); } catch (e){ msum = 0; }
-  ok(msum > 0, 'dev.html (ES modules) boots and paints - the module graph resolves');
+  /* Boot evidence that does not depend on iframe rAF timing: resize(), showMenu()
+   * and renderMeta() all ran inside the module graph. */
+  ok(mdoc.getElementById('game').width > 0, 'dev.html sized its canvas (boot ran)');
   ok(!mdoc.getElementById('menu').classList.contains('hidden'), 'dev.html shows the menu');
+  eq(mdoc.getElementById('badges').children.length, K.ACH.length, 'dev.html rendered the badge row');
+  eq(mdoc.getElementById('skins').children.length, K.SKINS.length, 'dev.html rendered the skin row');
+  let msum = 0;
+  const mctx = mdoc.getElementById('game').getContext('2d');
+  for (let tries = 0; tries < 6 && msum === 0; tries++){
+    try { msum = Array.from(mctx.getImageData(0, 120, 200, 1).data).reduce((a, b) => a + b, 0); } catch (e){ msum = 0; }
+    if (msum === 0) await sleep(300);
+  }
+  ok(msum > 0, 'dev.html (ES modules) paints - the module graph resolves and draws');
 
   /* ============================ 31. the frame path, driven deterministically */
   sec('31. advance -> update -> HUD -> draw (the production frame path)');
@@ -947,6 +962,279 @@ async function main(){
   K.step(DT);
   ok(G.hazards.length >= 4 && G.pickups.length >= 4, 'the scene holds saws, spike, drone and pickups');
   ok(!fatal(), 'no runtime error after composing the scene', fatal());
+
+  /* ============================================ 33. achievements (Phase 4) */
+  sec('33. achievements: conditions, persistence, toasts');
+  win.localStorage.removeItem(K.KEYS.ach);
+  K.achReset();
+  eq(K.achCount(), 0, 'no badges at a fresh start');
+  g = fresh(800, 600);
+  g.combo = 10;
+  K.achTick(g, DT);
+  ok(K.achHas('combo10'), 'a x10 combo unlocks its badge');
+  eq(K.LS.get(K.KEYS.ach), 'combo10', 'the unlock is persisted');
+  ok(K.achCurrentToast() && K.achCurrentToast().id === 'combo10', 'a toast is queued for the badge');
+  let toastT = 0;
+  while (K.achCurrentToast() && toastT < 12){ K.achTick(g, DT); toastT += DT; }
+  eq(K.achCurrentToast(), null, 'the toast retires after its configured time');
+  ok(toastT >= CFG.achToastTime, 'the toast lasted at least achToastTime', toastT);
+  const achBefore = K.LS.get(K.KEYS.ach);
+  ok(!K.achUnlock(g, 'combo10'), 're-unlocking an owned badge is a no-op');
+  eq(K.LS.get(K.KEYS.ach), achBefore, 'storage is not rewritten for an owned badge');
+
+  g = fresh(800, 600); g.starsRun = CFG.achStars; K.achTick(g, DT);
+  ok(K.achHas('stars3'), 'three stars in a run unlock their badge');
+  g = fresh(800, 600); g.elapsed = CFG.achSurvive; K.achTick(g, DT);
+  ok(K.achHas('live120'), 'surviving 120s unlocks its badge');
+  g = fresh(800, 600); g.shieldSaves = 1; K.achTick(g, DT);
+  ok(K.achHas('save1'), 'a shield save unlocks its badge');
+
+  g = fresh(800, 600); g.hazards.length = 0; g.shield = true;
+  pinnedSaw(g, 400, 300, 20);
+  K.updateHazards(g, DT);
+  eq(g.shieldSaves, 1, 'absorbing a hazard counts a shield save through the real path');
+  g = fresh(800, 600); g.pickups.length = 0;
+  const achStar = K.spawnPickup(g, 'star');
+  g.ball.x = achStar.x; g.ball.y = achStar.y;
+  K.updatePickups(g, DT);
+  eq(g.starsRun, 1, 'collecting a star counts through the real path');
+
+  win.localStorage.removeItem(K.KEYS.ach); K.achReset();
+  g = fresh(800, 600);
+  g.combo = 10; g.starsRun = 3; g.elapsed = 120; g.shieldSaves = 1;
+  K.achTick(g, DT);
+  eq(K.achCount(), 4, 'all four badges can be earned');
+  let seenToasts = 0, lastToastId = '';
+  for (let i = 0; i < 1500; i++){
+    const t = K.achTick(g, DT);
+    if (t && t.id !== lastToastId){ seenToasts++; lastToastId = t.id; }
+  }
+  eq(seenToasts, 4, 'the four toasts show one after another, never stacked');
+  win.localStorage.removeItem(K.KEYS.ach); K.achReset();
+
+  /* ==================================================== 34. skins (Phase 4) */
+  sec('34. skins: palette swaps gated by best score');
+  win.localStorage.removeItem(K.KEYS.skin);
+  eq(K.skinLoad().id, K.SKINS[0].id, 'the default skin is the base palette');
+  eq(K.SKINS.length, CFG.skinUnlock.length, 'every skin has an unlock threshold');
+  ok(!K.skinIsUnlocked(K.SKINS.length - 1, 0), 'the top skin is locked at best 0');
+  eq(K.skinChoose('solar', 0), null, 'a locked skin cannot be selected');
+  eq(K.skinLoad().id, K.SKINS[0].id, 'a refused selection changes nothing');
+  ok(K.skinChoose('lime', 100000), 'an unlocked skin can be selected');
+  eq(K.skinLoad().id, 'lime', 'the selection survives a reload of the module state');
+  eq(K.LS.get(K.KEYS.skin), 'lime', 'the skin id is persisted');
+  ok(K.skinIsUnlocked(1, CFG.skinUnlock[1]), 'exactly at the threshold unlocks');
+  ok(!K.skinIsUnlocked(1, CFG.skinUnlock[1] - 1), 'one point below stays locked');
+  g = fresh(800, 600);
+  g.skin = K.SKINS[3];
+  ok(g.skin.hi && g.skin.mid && g.skin.lo && g.skin.trail, 'a skin is a full palette');
+  win.localStorage.removeItem(K.KEYS.skin);
+
+  /* ============================================ 35. daily challenge (Phase 4) */
+  sec('35. daily challenge: seeded, bounded, remembered');
+  const k1 = K.dailyKey();
+  ok(/^\d{4}-\d{2}-\d{2}$/.test(k1), 'the daily key is a date string', k1);
+  const m1 = K.dailyMods(k1), m1b = K.dailyMods(k1);
+  eq(JSON.stringify(m1), JSON.stringify(m1b), 'the same date always yields the same mix');
+  ok(JSON.stringify(K.dailyMods('2020-01-01')) !== JSON.stringify(m1), 'another date yields another mix');
+  ok(m1.gravityMul >= CFG.dailyGravityMin && m1.gravityMul <= CFG.dailyGravityMax, 'gravity multiplier bounded (pillar 4)');
+  ok(m1.intervalMul >= CFG.dailyIntervalMin && m1.intervalMul <= CFG.dailyIntervalMax, 'interval multiplier bounded');
+  ok(m1.sawSpeedMul >= CFG.dailySawSpeedMin && m1.sawSpeedMul <= CFG.dailySawSpeedMax, 'saw speed multiplier bounded');
+  ok(m1.grace >= CFG.dailyGraceMin && m1.grace <= CFG.dailyGraceMax, 'grace bounded');
+  ok(m1.starMul >= CFG.dailyStarMin && m1.starMul <= CFG.dailyStarMax, 'star rate bounded');
+  ok(K.dailyLabel(m1).length > 0, 'the mix has a human-readable label');
+
+  const savedClassicBest = K.LS.get(K.KEYS.best);
+  win.localStorage.removeItem(K.KEYS.daily + k1);
+  eq(K.dailyBestGet(k1), 0, 'no daily result before playing');
+  ok(K.dailyBestSet(k1, 500), 'a daily result is stored');
+  eq(K.dailyBestGet(k1), 500, 'the daily best reads back');
+  ok(!K.dailyBestSet(k1, 400), 'a worse daily score does not overwrite the best');
+
+  g = K.newGame(800, 600); K.startDaily(g);
+  ok(g.daily && g.daily.key === k1, 'a daily run carries today\'s mods');
+  eq(g.mode, 'classic', 'the daily is a classic run with mods');
+  near(g.sawTimer, g.daily.grace, 1e-9, 'the daily grace replaces the classic one');
+  near(K.gravityNow(g), CFG.gravityBase * g.daily.gravityMul, 1e-9, 'the daily gravity multiplier applies');
+  near(K.sawInterval(g), Math.max(0.9, CFG.hazardIntervalStart * g.daily.intervalMul), 1e-9,
+       'the daily interval multiplier applies with a floor');
+  g.elapsed = 1000;
+  let dMax = 0;
+  for (let i = 0; i < 200; i++){ g.hazards.length = 0; const h = K.spawnSaw(g); if (h) dMax = Math.max(dMax, Math.abs(h.vx)); }
+  ok(dMax <= (CFG.sawSpeedMax + CFG.sawSpeedRampCap) * CFG.dailySawSpeedMax + 1e-6,
+     'daily saw speed stays under its cap (pillar 4)', dMax);
+  g.score = 700; K.die(g);
+  eq(K.dailyBestGet(k1), 700, 'finishing a daily run records the result');
+  win.localStorage.removeItem(K.KEYS.daily + k1);
+  if (savedClassicBest === null) win.localStorage.removeItem(K.KEYS.best);
+  else K.LS.set(K.KEYS.best, savedClassicBest);
+
+  /* ================================================== 36. share (Phase 4) */
+  sec('36. share score: plain text, clipboard only');
+  g = fresh(800, 600); g.score = 1240; g.maxCombo = 12; g.elapsed = 87.4;
+  eq(K.shareText(g), 'KEEP IT UP \u2014 1240 pts, \u00d710 combo, 87s', 'classic share line');
+  g.mode = 'climb'; g.score = 320;
+  eq(K.shareText(g), 'KEEP IT UP \u2014 CLIMB 320 m in 87s', 'climb share line');
+  g.mode = 'classic'; g.daily = { key: '2026-01-01' };
+  ok(K.shareText(g).indexOf('DAILY 2026-01-01') > 0, 'a daily run is labelled in the share line');
+  g.daily = null;
+  ok(!!doc.getElementById('shareBtn'), 'the game-over panel offers COPY SCORE');
+  K.copyShare(K.shareText(g));
+  await sleep(60);
+  ok(doc.getElementById('shareBtn').textContent !== 'COPY SCORE',
+     'the share button reports the clipboard outcome', doc.getElementById('shareBtn').textContent);
+
+  /* ====================== 37. climb corridor guarantee (Phase 5 acceptance) */
+  sec('37. climb: every band has a reachable corridor (5 runs)');
+  let bandsChecked = 0, invalidBands = 0, narrowBands = 0, jumpBands = 0, intrudingSaws = 0;
+  for (let run = 0; run < 5; run++){
+    g = K.newGame(800, 600);
+    K.startClimb(g);
+    g.climb.bands.length = 0; g.climb.nextK = 1; g.climb.lastGapX = g.ball.x;
+    let prev = g.climb.lastGapX;
+    for (let k = 1; k <= 60; k++){
+      const band = K.climbMakeBand(g, k);
+      bandsChecked++;
+      if (!K.climbBandValid(g, band, prev)) invalidBands++;
+      if (band.gapW < CFG.climbCorridorMin) narrowBands++;
+      if (Math.abs(band.gapX - prev) > CFG.climbMaxLateral) jumpBands++;
+      const half = band.gapW / 2 + g.ball.r;
+      for (let s = 0; s < band.saws.length; s++){
+        if (Math.abs(band.saws[s].x - band.gapX) < half + band.saws[s].r) intrudingSaws++;
+      }
+      g.climb.bands.push(band);
+      prev = band.gapX;
+    }
+  }
+  ok(bandsChecked >= 300, 'enough bands were validated', bandsChecked);
+  eq(invalidBands, 0, 'no band fails validation across 5 generated runs');
+  eq(narrowBands, 0, 'no corridor is narrower than climbCorridorMin');
+  eq(jumpBands, 0, 'no corridor jumps further than climbMaxLateral');
+  eq(intrudingSaws, 0, 'no saw intrudes into its band corridor');
+
+  sec('38. climb: camera, lava, contacts, metres, caps');
+  g = K.newGame(800, 600); K.startClimb(g);
+  eq(g.mode, 'climb', 'climb mode starts');
+  ok(g.climb.bands.length > 0, 'bands exist at start');
+  let sawCount = 0;
+  for (let i = 0; i < g.climb.bands.length; i++) sawCount += g.climb.bands[i].saws.length;
+  ok(sawCount <= CFG.climbHazardCap, 'live band saws respect the cap (pillar 4)', sawCount);
+  ok(g.climb.bands.length <= CFG.climbBandCap, 'band memory is capped (pillar 4)');
+
+  const cam0 = g.climb.camY;
+  g.ball.x = g.climb.bands[0].gapX;
+  g.ball.y -= 200; g.ball.vy = 0;
+  K.climbUpdate(g, DT);
+  ok(g.climb.camY < cam0, 'the camera follows max height upward');
+  const cam1 = g.climb.camY;
+  g.ball.y += 150;
+  K.climbUpdate(g, DT);
+  eq(g.climb.camY, cam1, 'the camera never scrolls back down');
+
+  g = K.newGame(800, 600); K.startClimb(g);
+  const lava0 = g.climb.lavaY;
+  K.climbUpdate(g, DT);
+  eq(g.climb.lavaY, lava0, 'lava waits out its grace period');
+  g.climb.lavaT = CFG.climbLavaGrace + 1;
+  K.climbUpdate(g, DT);
+  ok(g.climb.lavaY < lava0, 'lava rises after the grace');
+  g.ball.y = g.climb.lavaY - 2000;
+  g.climb.lavaT = CFG.climbLavaGrace + 1;
+  g.elapsed = 1e6;
+  const l1 = g.climb.lavaY;
+  for (let i = 0; i < 60; i++) K.climbUpdate(g, DT);
+  near(l1 - g.climb.lavaY, CFG.climbLavaSpeedMax, 0.01, 'lava rise speed is capped (pillar 4)');
+
+  g = K.newGame(800, 600); K.startClimb(g);
+  g.ball.y = g.climb.lavaY - 5; g.ball.vy = 60;
+  K.climbUpdate(g, DT);
+  eq(g.state, 'dying', 'touching the lava ends the run');
+
+  g = K.newGame(800, 600); K.startClimb(g);
+  ok(g.climb.bands[0].saws.length > 0, 'the first band carries saws');
+  g.ball.x = g.climb.bands[0].saws[0].x; g.ball.y = g.climb.bands[0].saws[0].y;
+  K.climbUpdate(g, DT);
+  eq(g.state, 'dying', 'a band saw kills');
+  g = K.newGame(800, 600); K.startClimb(g);
+  g.shield = true;
+  g.ball.x = g.climb.bands[0].saws[0].x; g.ball.y = g.climb.bands[0].saws[0].y;
+  K.climbUpdate(g, DT);
+  eq(g.state, 'play', 'a shield absorbs a band saw');
+  ok(!g.shield, 'the shield is consumed by a band saw');
+
+  g = K.newGame(800, 600); K.startClimb(g);
+  const cband = g.climb.bands[0];
+  const cstar = cband.items.filter(it => it.type === 'star')[0];
+  ok(!!cstar, 'every band seeds a star in its corridor');
+  g.ball.x = cstar.x; g.ball.y = cstar.y;
+  K.climbUpdate(g, DT);
+  ok(!cstar.alive, 'the band star is collectable');
+  eq(g.climb.bonus, CFG.climbStarMeters, 'a climb star pays metres');
+  g.climb.bands.length = 0; g.climb.nextK = 1; g.climb.lastGapX = g.ball.x;
+  const shieldBand = K.climbMakeBand(g, CFG.climbShieldEvery);
+  ok(shieldBand.items.some(it => it.type === 'shield'), 'every Nth band hides a shield');
+
+  g = K.newGame(800, 600); K.startClimb(g);
+  g.ball.y = g.climb.baseY - CFG.climbPixelsPerMeter * 10;
+  K.climbUpdate(g, DT);
+  eq(g.climb.meters, 10, 'metres track climbed height');
+  eq(g.score, 10, 'the climb score is metres (Phase 5)');
+
+  const savedClimbBest = K.LS.get(K.KEYS.bestClimb);
+  g = K.newGame(800, 600); K.startClimb(g);
+  g.climb.meters = 999; g.score = 999;
+  g.ball.y = g.climb.lavaY; K.climbUpdate(g, DT);
+  eq(K.LS.get(K.KEYS.bestClimb), '999', 'climb best is stored under its own key');
+  if (savedClimbBest === null) win.localStorage.removeItem(K.KEYS.bestClimb);
+  else K.LS.set(K.KEYS.bestClimb, savedClimbBest);
+
+  g = K.newGame(800, 600); K.startClimb(g);
+  g.ball.y = -5000; g.ball.vy = -100;
+  K.updateBall(g, DT, 0);
+  ok(g.ball.y < -5000, 'climb has open sky (no ceiling clamp)');
+  g = K.newGame(800, 600); K.startGame(g);
+  g.ball.y = -5000; g.ball.vy = -100;
+  K.updateBall(g, DT, 0);
+  ok(g.ball.y > -5000, 'classic keeps its soft ceiling');
+  g = K.newGame(800, 600); K.startClimb(g);
+  for (let i = 0; i < 600; i++) K.update(g, DT);
+  eq(g.hazards.length, 0, 'climb never uses the classic hazard spawners');
+  eq(g.pickups.length, 0, 'climb never uses the classic pickup spawners');
+  g = K.newGame(800, 600); K.startGame(g);
+  eq(g.mode, 'classic', 'startGame stays classic');
+  eq(g.climb, null, 'classic runs carry no climb state');
+
+  /* ========================================== 39. menu furniture (Phase 4) */
+  sec('39. menu furniture: badges, skins, daily strip, shortcuts');
+  K.quitToMenu(G);
+  eq(doc.getElementById('badges').children.length, K.ACH.length, 'one badge slot per achievement');
+  eq(doc.getElementById('skins').children.length, K.SKINS.length, 'one swatch per skin');
+  ok(/DAILY \d{4}-\d{2}-\d{2}/.test(doc.getElementById('dailyStrip').textContent), 'the daily strip names today');
+  ok(!!doc.getElementById('climbBtn') && !!doc.getElementById('dailyBtn'), 'mode buttons exist');
+  ok(doc.getElementById('toast').classList.contains('toast'), 'the badge toast is a CSS-animated element');
+  ok(doc.documentElement.style.getPropertyValue('--toast-in').length > 0, 'CFG drives the toast timing');
+  if (doc.activeElement && doc.activeElement.blur) doc.activeElement.blur();
+  win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'KeyC', key: 'c', bubbles: true, cancelable: true }));
+  eq(G.mode, 'climb', 'C starts climb mode from the menu');
+  K.quitToMenu(G);
+  if (doc.activeElement && doc.activeElement.blur) doc.activeElement.blur();
+  win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'KeyD', key: 'd', bubbles: true, cancelable: true }));
+  ok(!!G.daily, 'D starts a daily run from the menu');
+  K.quitToMenu(G);
+
+  /* ======================================= 40. climb scene for eyeballing */
+  sec('40. climb scene (eyeball the first iframe)');
+  K.startClimb(G);
+  G.ball.x = G.climb.bands[0].gapX;
+  G.ball.y = G.climb.baseY - 160; G.ball.vy = -320;
+  G.shield = true;
+  G.climb.meters = 42; G.score = 42;
+  K.updateHud(G);
+  K.step(DT);
+  G.climb.lavaY = G.climb.camY + G.H - 30;      // scene dressing: lava in frame (post-camera)
+  K.step(DT);
+  ok(G.climb.bands.length > 0 && G.mode === 'climb', 'climb scene composed');
+  ok(!fatal(), 'no runtime error after the climb scene', fatal());
 
   /* ------------------------------------------------------------- teardown */
   ok(!fatal(), 'no runtime error surfaced during the whole run', fatal());

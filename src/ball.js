@@ -64,9 +64,11 @@ export function attemptBounce(g, cx, cy, auto){
     g.comboTimer = CFG.comboWindow;
     g.maxCombo = Math.max(g.maxCombo, g.combo);
     g.bounces++;
-    /* SCORE-01/03 */
-    addScore(g, CFG.bouncePoints * Math.min(g.combo, CFG.comboCap),
-             b.x, b.y - b.r - CFG.scoreTextDy, '#ffd166');
+    /* SCORE-01/03 — climb mode scores metres only (Phase 5) */
+    if (g.mode !== 'climb'){
+      addScore(g, CFG.bouncePoints * Math.min(g.combo, CFG.comboCap),
+               b.x, b.y - b.r - CFG.scoreTextDy, '#ffd166');
+    }
     Snd.bounce(g.combo);
   } else if (!auto){
     Snd.bounce(1);
@@ -94,9 +96,12 @@ export function updateBall(g, dt, gravity){
     b.x = g.W - b.r; b.vx = -Math.abs(b.vx) * CFG.wallRest;
     b.wAmp = Math.max(b.wAmp, CFG.wallWobble); Snd.wall();
   }
-  /* soft ceiling: the ball may leave the top but is pushed back */
-  const ceil = -b.r * CFG.ceilingPad;
-  if (b.y < ceil){ b.y = ceil; b.vy = Math.abs(b.vy) * CFG.ceilingRest; }
+  /* soft ceiling: the ball may leave the top but is pushed back.
+   * Climb mode has open sky instead. */
+  if (g.mode !== 'climb'){
+    const ceil = -b.r * CFG.ceilingPad;
+    if (b.y < ceil){ b.y = ceil; b.vy = Math.abs(b.vy) * CFG.ceilingRest; }
+  }
 
   /* PHYS-04: stretch follows the velocity vector; the face counter-rotates */
   const sp = Math.hypot(b.vx, b.vy);
