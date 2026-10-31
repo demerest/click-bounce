@@ -113,6 +113,11 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
 
 /* ---------- Phase 4: toasts, badges, skins, daily, modes ---------- */
 .unit{font-family:var(--mono); font-size:clamp(16px,3vw,24px); font-weight:900; color:var(--dim); margin-left:4px;}
+.modeTag{font-family:var(--mono); font-size:10px; letter-spacing:.22em; margin-top:5px;
+  display:inline-block; padding:2px 7px; border:2px solid currentColor; background:rgba(10,13,20,.72);}
+.modeTag.hidden{display:none;}   /* must beat .modeTag's display (equal specificity, later rule) */
+.modeTag.climb{color:var(--cool);}
+.modeTag.daily{color:var(--violet);}
 #toasts{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:30;
   pointer-events:none; display:flex; flex-direction:column; align-items:center; gap:8px;}
 .toast{font-family:var(--mono); text-align:center; background:var(--panel);

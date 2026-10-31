@@ -1294,6 +1294,77 @@ async function main(){
   ok(!doc.getElementById('menu').classList.contains('hidden'), 'the menu overlay is shown');
   ok(!fatal(), 'no runtime error after the regression section', fatal());
 
+  /* ===================== 42. mode identity + sealed climb bands (playtest 4-5) */
+  sec('42. per-mode background identity and sealed saw rows');
+  g = fresh(800, 600);
+  eq(K.bgBaseHue(g), CFG.bgHueBase, 'classic uses the base sky hue');
+  let g2 = K.newGame(800, 600); K.startClimb(g2);
+  eq(K.bgBaseHue(g2), CFG.bgHueClimb, 'climb uses its own sky hue');
+  g2 = fresh(800, 600); g2.daily = K.dailyMods('2026-01-01');
+  eq(K.bgBaseHue(g2), CFG.bgHueDaily, 'daily uses its own sky hue');
+  ok(CFG.bgHueBase !== CFG.bgHueClimb && CFG.bgHueClimb !== CFG.bgHueDaily && CFG.bgHueBase !== CFG.bgHueDaily,
+     'the three skies are distinct hues');
+  g2 = fresh(800, 600); K.fx.updateFx(g2, DT);
+  near(g2.hue, CFG.bgHueBase, 1, 'the animated hue starts at the mode base');
+
+  K.startClimb(G); K.updateHud(G);
+  eq(doc.getElementById('modeTag').textContent, 'CLIMB', 'the HUD tag reads CLIMB in climb mode');
+  ok(!doc.getElementById('modeTag').classList.contains('hidden'), 'the tag is visible in climb');
+  K.startDaily(G); K.updateHud(G);
+  ok(doc.getElementById('modeTag').textContent.indexOf('DAILY ') === 0, 'the HUD tag reads DAILY + date');
+  ok(doc.getElementById('modeTag').classList.contains('daily'), 'the daily tag is styled');
+  K.startGame(G); K.updateHud(G);
+  eq(doc.getElementById('modeTag').textContent, '', 'classic shows no tag');
+  ok(doc.getElementById('modeTag').classList.contains('hidden'), 'the tag hides in classic');
+  eq(win.getComputedStyle(doc.getElementById('modeTag')).display, 'none', 'the hidden tag is really invisible');
+  K.startClimb(G); K.updateHud(G);
+  ok(win.getComputedStyle(doc.getElementById('modeTag')).display !== 'none', 'the climb tag is really visible');
+
+  /* every band must seal the row: the only ball-sized opening is the corridor */
+  const ballD = 2 * CFG.ballRadius;
+  let badHoles = 0, corridorGaps = 0, bandsSealed = 0, sawsTotal = 0, diag = '';
+  for (let run = 0; run < 5; run++){
+    g2 = K.newGame(800, 600); K.startClimb(g2);
+    for (let bi = 0; bi < g2.climb.bands.length; bi++){
+      const band = g2.climb.bands[bi];
+      const xs = band.saws.map(s => s.x).sort((a, b) => a - b);
+      sawsTotal += xs.length;
+      bandsSealed++;
+      if (!xs.length){ badHoles++; diag += ' empty[k' + band.k + ']'; continue; }
+      /* free horizontal intervals between saw bodies and the arena walls */
+      const free = [];
+      let cur = 0;
+      for (let j = 0; j < xs.length; j++){
+        const L = xs[j] - CFG.climbSawR, R = xs[j] + CFG.climbSawR;
+        if (L > cur) free.push([cur, L]);
+        cur = Math.max(cur, R);
+      }
+      if (cur < g2.W) free.push([cur, g2.W]);
+      let corr = 0;
+      for (let j = 0; j < free.length; j++){
+        const w = free[j][1] - free[j][0];
+        if (w <= ballD) continue;                       // too tight for the ball: sealed
+        const overlaps = free[j][1] > band.gapX - band.gapW / 2 && free[j][0] < band.gapX + band.gapW / 2;
+        if (overlaps){
+          corr++;
+          if (w < CFG.climbCorridorMin){ badHoles++; diag += ' narrowcorr[k' + band.k + ',w' + Math.round(w) + ']'; }
+        } else {
+          badHoles++; diag += ' hole[k' + band.k + ',w' + Math.round(w) + ',at' + Math.round(free[j][0]) + ']';
+        }
+      }
+      if (corr !== 1){ badHoles++; diag += ' corrcount[k' + band.k + ',' + corr + ']'; }
+      else corridorGaps++;
+    }
+  }
+  ok(badHoles === 0, 'no unintended ball-sized hole outside the corridor (playtest bug 2)', diag || 'none');
+  ok(corridorGaps === bandsSealed, 'exactly one corridor-sized gap per band', corridorGaps + ' gaps vs ' + bandsSealed + ' bands' + diag);
+  ok(sawsTotal > 0, 'bands carry saws', sawsTotal);
+  g2 = K.newGame(800, 600); K.startClimb(g2);
+  let liveSaws = 0;
+  for (let bi = 0; bi < g2.climb.bands.length; bi++) liveSaws += g2.climb.bands[bi].saws.length;
+  ok(liveSaws <= CFG.climbHazardCap, 'live band saws stay under the cap (pillar 4)', liveSaws);
+  ok(!fatal(), 'no runtime error after mode-identity checks', fatal());
+
   /* ------------------------------------------------------------- teardown */
   ok(!fatal(), 'no runtime error surfaced during the whole run', fatal());
   render();

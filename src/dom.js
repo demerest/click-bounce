@@ -29,6 +29,7 @@ export const DOM = {
   retryBtn: byId('retryBtn'),
   menuBtn: byId('menuBtn'),
   scoreUnit: byId('scoreUnit'),
+  modeTag: byId('modeTag'),
   overEyebrow: byId('overEyebrow'),
   toasts: byId('toasts'),
   toast: byId('toast'),

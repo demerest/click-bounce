@@ -24,28 +24,40 @@ export function climbLavaSpeed(g){
   return Math.min(CFG.climbLavaSpeedMax, CFG.climbLavaSpeedBase + g.elapsed * CFG.climbLavaSpeedRamp);
 }
 
-/* Saw row covering the band line except the corridor. Extra holes left by the
- * cap are fine: the guarantee is that the designed corridor exists. */
+/* Saw row that SEALS the band line on both sides of the corridor: saws are spaced
+ * evenly within each side span so the hole between neighbours stays under the ball
+ * diameter (climbSealGap), leaving the corridor as the only way through. If the
+ * hazard budget ever runs out (absurdly wide screens) spacing widens gracefully -
+ * the corridor guarantee from climbBandValid still holds either way. */
 function buildSaws(g, y, gapX, gapW, budget){
-  const saws = [];
   const r = CFG.climbSawR;
+  const seal = r * 2 + CFG.climbSealGap;
   const keepOut = gapW / 2 + r + g.ball.r;
-  const step = r * 2 + CFG.climbSawPad;
-  const x0 = r + 4, x1 = g.W - r - 4;
-  for (let x = x0; x <= x1; x += step){
-    if (Math.abs(x - gapX) < keepOut) continue;
-    saws.push({
-      x: x, y: y, r: r,
-      rot: rand(0, TAU),
-      rotV: rand(CFG.sawSpinMin, CFG.sawSpinMax) * (Math.random() < 0.5 ? 1 : -1),
-    });
+  const xMin = r + 4, xMax = g.W - r - 4;
+  const spans = [];
+  const leftEnd = gapX - keepOut - r;
+  const rightStart = gapX + keepOut + r;
+  if (leftEnd - xMin > seal * 0.4) spans.push([xMin, leftEnd]);
+  if (xMax - rightStart > seal * 0.4) spans.push([rightStart, xMax]);
+
+  const saws = [];
+  for (let s = 0; s < spans.length; s++){
+    const a = spans[s][0], b = spans[s][1];
+    /* endpoints inclusive: the saws flanking the corridor sit exactly at the span
+     * ends, so the hole between corridor edge and saw edge stays under the ball */
+    const needed = Math.max(1, Math.ceil((b - a) / seal) + 1);
+    const n = Math.min(needed, Math.max(0, budget - saws.length), CFG.climbSawsPerBandMax - saws.length);
+    if (n <= 0) continue;
+    for (let i = 0; i < n; i++){
+      const x = n === 1 ? (a + b) / 2 : a + (b - a) * i / (n - 1);
+      saws.push({
+        x: x, y: y, r: r,
+        rot: rand(0, TAU),
+        rotV: rand(CFG.sawSpinMin, CFG.sawSpinMax) * (Math.random() < 0.5 ? 1 : -1),
+      });
+    }
   }
-  if (saws.length > CFG.climbSawsPerBandMax){
-    const kept = [];
-    for (let i = 0; i < saws.length; i++) if (i % 2 === 0) kept.push(saws[i]);
-    return kept.slice(0, CFG.climbSawsPerBandMax);
-  }
-  return saws.slice(0, Math.max(0, budget));
+  return saws;
 }
 
 /* The acceptance rule: a corridor of at least climbCorridorMin, inside the

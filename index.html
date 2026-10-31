@@ -133,6 +133,11 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
 
 /* ---------- Phase 4: toasts, badges, skins, daily, modes ---------- */
 .unit{font-family:var(--mono); font-size:clamp(16px,3vw,24px); font-weight:900; color:var(--dim); margin-left:4px;}
+.modeTag{font-family:var(--mono); font-size:10px; letter-spacing:.22em; margin-top:5px;
+  display:inline-block; padding:2px 7px; border:2px solid currentColor; background:rgba(10,13,20,.72);}
+.modeTag.hidden{display:none;}   /* must beat .modeTag's display (equal specificity, later rule) */
+.modeTag.climb{color:var(--cool);}
+.modeTag.daily{color:var(--violet);}
 #toasts{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:30;
   pointer-events:none; display:flex; flex-direction:column; align-items:center; gap:8px;}
 .toast{font-family:var(--mono); text-align:center; background:var(--panel);
@@ -190,7 +195,7 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
 <canvas id="game" aria-label="Gameplay surface. Click or tap near the ball to bounce it away from your pointer."></canvas>
 
 <div id="hud">
-  <div id="scoreBox"><span id="score">0</span><span id="scoreUnit" class="unit hidden">m</span><div id="best">BEST 0</div></div>
+  <div id="scoreBox"><span id="score">0</span><span id="scoreUnit" class="unit hidden">m</span><div id="best">BEST 0</div><div id="modeTag" class="modeTag hidden"></div></div>
   <div id="comboBox"><div id="combo">&times;2</div><div id="comboBarWrap"><div id="comboBar"></div></div></div>
   <div id="effects" aria-hidden="true"></div>
 </div>
@@ -594,11 +599,11 @@ const CFG = {
   climbMaxLateral: 260,         // max corridor shift between consecutive bands
   climbEdgePad: 40,
   climbSawR: 22,
-  climbSawPad: 2,
-  climbSawsPerBandMax: 10,      // pillar 4
+  climbSealGap: 46,             // max hole between saws: below the ball diameter, so sealed
+  climbSawsPerBandMax: 24,      // pillar 4: enough to seal a ~2500px-wide row
   climbBandAhead: 1.5,          // screens of bands generated above the viewport
-  climbBandCap: 8,              // pillar 4: live bands kept in memory
-  climbHazardCap: 80,           // pillar 4: bandCap * sawsPerBandMax, the hard ceiling
+  climbBandCap: 5,              // pillar 4: live bands kept in memory
+  climbHazardCap: 120,          // pillar 4: bandCap * sawsPerBandMax, the hard ceiling
   climbStarDrop: 46,            // star sits this far above its band line
   climbStarMeters: 5,           // a climb star is worth this many metres
   climbShieldEvery: 3,          // every Nth band also hides a shield in its corridor
@@ -610,6 +615,16 @@ const CFG = {
   climbLavaSpeedRamp: 0.35,
   climbLavaSpeedMax: 70,        // pillar 4 cap
   climbLavaWarn: 140,           // glow height above the lava line
+  altitudeEvery: 100,           // climb background: an altitude tick per this many px
+  altitudeLabelEvery: 5,        // label every Nth tick
+  altitudeAlpha: 0.06,
+  altitudeLabelAlpha: 0.3,
+
+  /* ---------------- per-mode background identity ---------------- */
+  bgHueClimb: 160,              // teal-green sky for climb
+  bgHueDaily: 320,              // magenta for the daily remix
+  dailyStripeStep: 90,          // daily background: diagonal hatch spacing
+  dailyStripeAlpha: 0.05,
 };
 
 const KEYS = {
@@ -765,6 +780,7 @@ const DOM = {
   retryBtn: byId('retryBtn'),
   menuBtn: byId('menuBtn'),
   scoreUnit: byId('scoreUnit'),
+  modeTag: byId('modeTag'),
   overEyebrow: byId('overEyebrow'),
   toasts: byId('toasts'),
   toast: byId('toast'),
@@ -1077,6 +1093,13 @@ function countKind(g, kind){
   return n;
 }
 
+/* Each mode gets its own sky so you always know what you are playing. */
+function bgBaseHue(g){
+  if (g.mode === 'climb') return CFG.bgHueClimb;
+  if (g.daily) return CFG.bgHueDaily;
+  return CFG.bgHueBase;
+}
+
 
 /* ===================== fx.js ===================== */
 
@@ -1171,9 +1194,9 @@ function updateFx(g, dt){
       if (d.y > g.H + 10){ d.y = -10; d.x = Math.random() * g.W; }
       if (d.x > g.W) d.x -= g.W;
     }
-    g.hue = (CFG.bgHueBase + g.totalT * CFG.bgHueRate) % 360;
+    g.hue = (bgBaseHue(g) + g.totalT * CFG.bgHueRate) % 360;
   } else {
-    g.hue = CFG.bgHueBase;
+    g.hue = bgBaseHue(g);
   }
 
   /* ambient ball life (PHYS-05) */
@@ -1529,6 +1552,7 @@ let hudFxKey = '';
 let hudPauseState = '';
 let hudToastId = '';
 let hudUnitState = '';
+let hudTag = '';
 
 function focusEl(el){
   if (el && typeof el.focus === 'function'){
@@ -1648,6 +1672,16 @@ function updateHud(g){
     DOM.scoreUnit.classList.toggle('hidden', !unit);
   }
 
+  /* always-visible answer to "which mode am I in?" */
+  const tag = g.mode === 'climb' ? 'CLIMB' : g.daily ? 'DAILY ' + g.daily.key : '';
+  if (tag !== hudTag){
+    hudTag = tag;
+    DOM.modeTag.textContent = tag;
+    DOM.modeTag.classList.toggle('hidden', !tag);
+    DOM.modeTag.classList.toggle('climb', g.mode === 'climb');
+    DOM.modeTag.classList.toggle('daily', !!g.daily && g.mode !== 'climb');
+  }
+
   updateToast();
   syncPauseButton(g);
 }
@@ -1744,6 +1778,7 @@ function applyCssKnobs(){
 function resetHudCache(){
   hudScore = -1; hudBest = -1; hudCombo = -1; hudComboWidth = -1; hudFxKey = '\u0000';
   hudPauseState = '';
+  hudToastId = ''; hudUnitState = ''; hudTag = '\u0000';
 }
 
 
@@ -1918,28 +1953,40 @@ function climbLavaSpeed(g){
   return Math.min(CFG.climbLavaSpeedMax, CFG.climbLavaSpeedBase + g.elapsed * CFG.climbLavaSpeedRamp);
 }
 
-/* Saw row covering the band line except the corridor. Extra holes left by the
- * cap are fine: the guarantee is that the designed corridor exists. */
+/* Saw row that SEALS the band line on both sides of the corridor: saws are spaced
+ * evenly within each side span so the hole between neighbours stays under the ball
+ * diameter (climbSealGap), leaving the corridor as the only way through. If the
+ * hazard budget ever runs out (absurdly wide screens) spacing widens gracefully -
+ * the corridor guarantee from climbBandValid still holds either way. */
 function buildSaws(g, y, gapX, gapW, budget){
-  const saws = [];
   const r = CFG.climbSawR;
+  const seal = r * 2 + CFG.climbSealGap;
   const keepOut = gapW / 2 + r + g.ball.r;
-  const step = r * 2 + CFG.climbSawPad;
-  const x0 = r + 4, x1 = g.W - r - 4;
-  for (let x = x0; x <= x1; x += step){
-    if (Math.abs(x - gapX) < keepOut) continue;
-    saws.push({
-      x: x, y: y, r: r,
-      rot: rand(0, TAU),
-      rotV: rand(CFG.sawSpinMin, CFG.sawSpinMax) * (Math.random() < 0.5 ? 1 : -1),
-    });
+  const xMin = r + 4, xMax = g.W - r - 4;
+  const spans = [];
+  const leftEnd = gapX - keepOut - r;
+  const rightStart = gapX + keepOut + r;
+  if (leftEnd - xMin > seal * 0.4) spans.push([xMin, leftEnd]);
+  if (xMax - rightStart > seal * 0.4) spans.push([rightStart, xMax]);
+
+  const saws = [];
+  for (let s = 0; s < spans.length; s++){
+    const a = spans[s][0], b = spans[s][1];
+    /* endpoints inclusive: the saws flanking the corridor sit exactly at the span
+     * ends, so the hole between corridor edge and saw edge stays under the ball */
+    const needed = Math.max(1, Math.ceil((b - a) / seal) + 1);
+    const n = Math.min(needed, Math.max(0, budget - saws.length), CFG.climbSawsPerBandMax - saws.length);
+    if (n <= 0) continue;
+    for (let i = 0; i < n; i++){
+      const x = n === 1 ? (a + b) / 2 : a + (b - a) * i / (n - 1);
+      saws.push({
+        x: x, y: y, r: r,
+        rot: rand(0, TAU),
+        rotV: rand(CFG.sawSpinMin, CFG.sawSpinMax) * (Math.random() < 0.5 ? 1 : -1),
+      });
+    }
   }
-  if (saws.length > CFG.climbSawsPerBandMax){
-    const kept = [];
-    for (let i = 0; i < saws.length; i++) if (i % 2 === 0) kept.push(saws[i]);
-    return kept.slice(0, CFG.climbSawsPerBandMax);
-  }
-  return saws.slice(0, Math.max(0, budget));
+  return saws;
 }
 
 /* The acceptance rule: a corridor of at least climbCorridorMin, inside the
@@ -3058,6 +3105,45 @@ function createRenderer(canvas){
     }
   }
 
+  /* ------------------------------------------------- mode identity (Phase 4/5) */
+  function drawDailyStripes(g){
+    ctx.save();
+    ctx.globalAlpha = CFG.dailyStripeAlpha;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 18;
+    ctx.beginPath();
+    for (let x = -g.H; x < g.W; x += CFG.dailyStripeStep){
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + g.H, g.H);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* altitude ticks scroll with the world: instant "I am climbing" read */
+  function drawAltitude(g){
+    const c = g.climb;
+    const every = CFG.altitudeEvery;
+    const y0 = Math.floor(c.camY / every) * every;
+    ctx.save();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.font = '700 10px ui-monospace, Menlo, Consolas, monospace';
+    ctx.textAlign = 'left';
+    for (let y = y0; y < c.camY + g.H + every; y += every){
+      const metres = Math.round((c.baseY - y) / every);
+      const labelled = metres % CFG.altitudeLabelEvery === 0;
+      ctx.globalAlpha = labelled ? CFG.altitudeAlpha * 2 : CFG.altitudeAlpha;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(g.W, y); ctx.stroke();
+      if (labelled){
+        ctx.globalAlpha = CFG.altitudeLabelAlpha;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(Math.round((c.baseY - y) / CFG.climbPixelsPerMeter) + 'm', 8, y - 4);
+      }
+    }
+    ctx.restore();
+  }
+
   /* ------------------------------------------------------- climb (Phase 5) */
   function drawBands(g){
     const c = g.climb;
@@ -3138,12 +3224,14 @@ function createRenderer(canvas){
     }
 
     drawDots(g);
+    if (g.daily) drawDailyStripes(g);
 
     const climb = g.mode === 'climb' && g.climb;
     /* Phase 5 camera: the world scrolls under a fixed HUD and background */
     ctx.translate(0, climb ? -g.climb.camY : 0);
 
     if (climb){
+      drawAltitude(g);
       drawBands(g);
       drawLava(g);
     } else {
@@ -3463,7 +3551,7 @@ function boot(){
         dailyBestGet: dailyBestGet, dailyBestSet: dailyBestSet,
         pauseGame: pauseGame, resumeGame: resumeGame, togglePause: togglePause,
         quitToMenu: quitToMenu, toggleMute: toggleMute, updateFlow: updateFlow,
-        attemptBounce: attemptBounce, gravityNow: gravityNow, resetRun: resetRun,
+        attemptBounce: attemptBounce, gravityNow: gravityNow, resetRun: resetRun, bgBaseHue: bgBaseHue,
         spawnSaw: spawnSaw, spawnSpike: spawnSpike, spawnSeeker: spawnSeeker,
         spawnPickup: spawnPickup, updateSpawners: updateSpawners, sawInterval: sawInterval,
         copyShare: copyShare, renderMeta: renderMeta,

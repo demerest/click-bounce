@@ -318,11 +318,11 @@ export const CFG = {
   climbMaxLateral: 260,         // max corridor shift between consecutive bands
   climbEdgePad: 40,
   climbSawR: 22,
-  climbSawPad: 2,
-  climbSawsPerBandMax: 10,      // pillar 4
+  climbSealGap: 46,             // max hole between saws: below the ball diameter, so sealed
+  climbSawsPerBandMax: 24,      // pillar 4: enough to seal a ~2500px-wide row
   climbBandAhead: 1.5,          // screens of bands generated above the viewport
-  climbBandCap: 8,              // pillar 4: live bands kept in memory
-  climbHazardCap: 80,           // pillar 4: bandCap * sawsPerBandMax, the hard ceiling
+  climbBandCap: 5,              // pillar 4: live bands kept in memory
+  climbHazardCap: 120,          // pillar 4: bandCap * sawsPerBandMax, the hard ceiling
   climbStarDrop: 46,            // star sits this far above its band line
   climbStarMeters: 5,           // a climb star is worth this many metres
   climbShieldEvery: 3,          // every Nth band also hides a shield in its corridor
@@ -334,6 +334,16 @@ export const CFG = {
   climbLavaSpeedRamp: 0.35,
   climbLavaSpeedMax: 70,        // pillar 4 cap
   climbLavaWarn: 140,           // glow height above the lava line
+  altitudeEvery: 100,           // climb background: an altitude tick per this many px
+  altitudeLabelEvery: 5,        // label every Nth tick
+  altitudeAlpha: 0.06,
+  altitudeLabelAlpha: 0.3,
+
+  /* ---------------- per-mode background identity ---------------- */
+  bgHueClimb: 160,              // teal-green sky for climb
+  bgHueDaily: 320,              // magenta for the daily remix
+  dailyStripeStep: 90,          // daily background: diagonal hatch spacing
+  dailyStripeAlpha: 0.05,
 };
 
 export const KEYS = {

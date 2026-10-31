@@ -4,6 +4,7 @@
  */
 
 import { CFG } from './config.js';
+import { bgBaseHue } from './state.js';
 import { clamp, decay, rand, TAU } from './math.js';
 
 export function burst(g, x, y, color, n, speed){
@@ -91,9 +92,9 @@ export function updateFx(g, dt){
       if (d.y > g.H + 10){ d.y = -10; d.x = Math.random() * g.W; }
       if (d.x > g.W) d.x -= g.W;
     }
-    g.hue = (CFG.bgHueBase + g.totalT * CFG.bgHueRate) % 360;
+    g.hue = (bgBaseHue(g) + g.totalT * CFG.bgHueRate) % 360;
   } else {
-    g.hue = CFG.bgHueBase;
+    g.hue = bgBaseHue(g);
   }
 
   /* ambient ball life (PHYS-05) */

@@ -136,3 +136,10 @@ export function countKind(g, kind){
   for (let i = 0; i < g.hazards.length; i++) if (g.hazards[i].kind === kind) n++;
   return n;
 }
+
+/* Each mode gets its own sky so you always know what you are playing. */
+export function bgBaseHue(g){
+  if (g.mode === 'climb') return CFG.bgHueClimb;
+  if (g.daily) return CFG.bgHueDaily;
+  return CFG.bgHueBase;
+}

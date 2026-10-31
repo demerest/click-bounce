@@ -18,6 +18,7 @@ let hudFxKey = '';
 let hudPauseState = '';
 let hudToastId = '';
 let hudUnitState = '';
+let hudTag = '';
 
 function focusEl(el){
   if (el && typeof el.focus === 'function'){
@@ -137,6 +138,16 @@ export function updateHud(g){
     DOM.scoreUnit.classList.toggle('hidden', !unit);
   }
 
+  /* always-visible answer to "which mode am I in?" */
+  const tag = g.mode === 'climb' ? 'CLIMB' : g.daily ? 'DAILY ' + g.daily.key : '';
+  if (tag !== hudTag){
+    hudTag = tag;
+    DOM.modeTag.textContent = tag;
+    DOM.modeTag.classList.toggle('hidden', !tag);
+    DOM.modeTag.classList.toggle('climb', g.mode === 'climb');
+    DOM.modeTag.classList.toggle('daily', !!g.daily && g.mode !== 'climb');
+  }
+
   updateToast();
   syncPauseButton(g);
 }
@@ -233,4 +244,5 @@ export function applyCssKnobs(){
 export function resetHudCache(){
   hudScore = -1; hudBest = -1; hudCombo = -1; hudComboWidth = -1; hudFxKey = '\u0000';
   hudPauseState = '';
+  hudToastId = ''; hudUnitState = ''; hudTag = '\u0000';
 }

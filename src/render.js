@@ -543,6 +543,45 @@ export function createRenderer(canvas){
     }
   }
 
+  /* ------------------------------------------------- mode identity (Phase 4/5) */
+  function drawDailyStripes(g){
+    ctx.save();
+    ctx.globalAlpha = CFG.dailyStripeAlpha;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 18;
+    ctx.beginPath();
+    for (let x = -g.H; x < g.W; x += CFG.dailyStripeStep){
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + g.H, g.H);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* altitude ticks scroll with the world: instant "I am climbing" read */
+  function drawAltitude(g){
+    const c = g.climb;
+    const every = CFG.altitudeEvery;
+    const y0 = Math.floor(c.camY / every) * every;
+    ctx.save();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.font = '700 10px ui-monospace, Menlo, Consolas, monospace';
+    ctx.textAlign = 'left';
+    for (let y = y0; y < c.camY + g.H + every; y += every){
+      const metres = Math.round((c.baseY - y) / every);
+      const labelled = metres % CFG.altitudeLabelEvery === 0;
+      ctx.globalAlpha = labelled ? CFG.altitudeAlpha * 2 : CFG.altitudeAlpha;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(g.W, y); ctx.stroke();
+      if (labelled){
+        ctx.globalAlpha = CFG.altitudeLabelAlpha;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(Math.round((c.baseY - y) / CFG.climbPixelsPerMeter) + 'm', 8, y - 4);
+      }
+    }
+    ctx.restore();
+  }
+
   /* ------------------------------------------------------- climb (Phase 5) */
   function drawBands(g){
     const c = g.climb;
@@ -623,12 +662,14 @@ export function createRenderer(canvas){
     }
 
     drawDots(g);
+    if (g.daily) drawDailyStripes(g);
 
     const climb = g.mode === 'climb' && g.climb;
     /* Phase 5 camera: the world scrolls under a fixed HUD and background */
     ctx.translate(0, climb ? -g.climb.camY : 0);
 
     if (climb){
+      drawAltitude(g);
       drawBands(g);
       drawLava(g);
     } else {
