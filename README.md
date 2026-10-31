@@ -3,6 +3,9 @@
 One-click arcade: a jelly ball falls forever; you bounce it back up.
 Zero asset files, zero dependencies, zero network requests.
 
+**Play it live:** <https://demerest.github.io/click-bounce/> (GitHub Pages)
+**Repository:** <https://github.com/demerest/click-bounce>
+
 `prototype.html` is the frozen Phase-0 reference build. **Do not edit it.**
 Everything below is the Phase 1–3 implementation.
 
@@ -43,7 +46,10 @@ powershell -ExecutionPolicy Bypass -File tools\verify.ps1             # build + 
 ```
 
 `dev.html` loads `src/game.js` as a module (needs the server). `index.html` is
-the inlined bundle. Both are generated; edit `src/`, never the outputs.
+the inlined bundle. Both are generated; edit `src/`, never the outputs. They are
+nonetheless **committed** so GitHub Pages can serve the game straight from the
+repository root with no build step in CI; after editing `src/`, run `build.ps1`
+and commit the regenerated outputs together with the source change.
 
 ### Bundler authoring rules (enforced by build.ps1)
 
