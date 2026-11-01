@@ -6,6 +6,7 @@ import { CFG, KEYS } from './config.js';
 import { DOM } from './dom.js';
 import { LS } from './storage.js';
 import { Snd } from './audio.js';
+import { paintIcon } from './render.js';
 import { ACH, achCurrentToast, achDef, achHas } from './achievements.js';
 import { SKINS, skinIsUnlocked, skinThreshold } from './skins.js';
 import { dailyBestGet, dailyKey, dailyLabel, dailyMods } from './daily.js';
@@ -36,7 +37,17 @@ export function showMenu(g){
   hideOverlays();
   DOM.menu.classList.remove('hidden');
   if (g) renderMeta(g);
+  paintMenuIcons();
   focusEl(DOM.startBtn);
+}
+
+/* The legend canvases are drawn by the same shape code the game uses, so what
+ * you see in the menu is exactly what you meet in play. */
+export function paintMenuIcons(){
+  const nodes = DOM.menu.querySelectorAll('canvas[data-icon]');
+  for (let i = 0; i < nodes.length; i++){
+    paintIcon(nodes[i], nodes[i].getAttribute('data-icon'));
+  }
 }
 
 export function showPause(g){

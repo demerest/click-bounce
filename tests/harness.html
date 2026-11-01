@@ -1252,6 +1252,32 @@ async function main(){
   eq(doc.getElementById('skins').children.length, K.SKINS.length, 'one swatch per skin');
   ok(/DAILY \d{4}-\d{2}-\d{2}/.test(doc.getElementById('dailyStrip').textContent), 'the daily strip names today');
   ok(!!doc.getElementById('climbBtn') && !!doc.getElementById('dailyBtn'), 'mode buttons exist');
+  /* reworked menu: one section per mode, icon legends, coloured mode buttons */
+  const menuEl = doc.getElementById('menu');
+  const heads = Array.prototype.map.call(menuEl.querySelectorAll('.msec h2'), h => h.textContent.toLowerCase());
+  ok(heads.some(t => t.indexOf('classic') === 0), 'menu has a classic mode section');
+  ok(heads.some(t => t.indexOf('climb') === 0), 'menu has a climb mode section');
+  ok(heads.some(t => t.indexOf('daily') === 0), 'menu has a daily section');
+  ok(heads.some(t => t.indexOf('hazards') === 0), 'menu has a hazards section');
+  ok(heads.some(t => t.indexOf('pickups') === 0), 'menu has a pickups section');
+  const icons = menuEl.querySelectorAll('canvas[data-icon]');
+  eq(icons.length, 9, 'every hazard and pickup has a legend icon');
+  let painted = 0;
+  for (let i = 0; i < icons.length; i++){
+    const ic = icons[i];
+    const ictx = ic.getContext('2d');
+    const d = ictx.getImageData(0, 0, ic.width, ic.height).data;
+    let s = 0;
+    for (let j = 3; j < d.length; j += 4) s += d[j];      // alpha channel: is anything drawn?
+    if (s > 0) painted++;
+  }
+  eq(painted, icons.length, 'every legend icon is actually painted by the game renderer');
+  ok(doc.getElementById('startBtn').classList.contains('gold'), 'classic button is gold');
+  ok(doc.getElementById('climbBtn').classList.contains('red'), 'climb button is red (the hard one)');
+  ok(doc.getElementById('dailyBtn').classList.contains('violet'), 'daily button is violet');
+  const cs = n => win.getComputedStyle(doc.getElementById(n)).backgroundColor;
+  ok(cs('startBtn') !== cs('climbBtn') && cs('climbBtn') !== cs('dailyBtn') && cs('startBtn') !== cs('dailyBtn'),
+     'the three mode buttons are visibly different colours', cs('startBtn') + ' / ' + cs('climbBtn') + ' / ' + cs('dailyBtn'));
   ok(doc.getElementById('toast').classList.contains('toast'), 'the badge toast is a CSS-animated element');
   ok(doc.documentElement.style.getPropertyValue('--toast-in').length > 0, 'CFG drives the toast timing');
   if (doc.activeElement && doc.activeElement.blur) doc.activeElement.blur();

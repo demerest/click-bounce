@@ -28,6 +28,188 @@ const SLOWMO_TINT_ALPHA = 0.09, HEAVY_TINT_ALPHA = 0.08;
 const CEIL_MARK_Y = 10, EDGE_ARROW_INSET = 6, MAGNET_TETHER_ALPHA = 0.35;
 const STAR_PULSE = 0.12;
 
+/* ---- entity shapes, shared by the game renderer and the menu legend icons,
+ * so the legend always shows exactly what the entity looks like in play ---- */
+function shapeStarPath(ctx, R){
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++){
+    const rr = i % 2 ? R * STAR_INNER : R;
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+}
+
+function shapeStar(ctx, R, fill, core){
+  ctx.fillStyle = fill;
+  shapeStarPath(ctx, R);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(10,12,20,0.55)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  if (core > 0){
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    shapeStarPath(ctx, core);
+    ctx.fill();
+  }
+}
+
+function shapeHeavy(ctx, r, t){
+  ctx.rotate(-t * CFG.starSpin * 0.6);
+  shapeStar(ctx, r, '#c98b3c', 0);
+  ctx.rotate(t * CFG.starSpin * 0.6);
+  /* heavier: a dark core and a downward chevron saying "this drags you down" */
+  ctx.fillStyle = 'rgba(20,14,6,0.75)';
+  ctx.beginPath(); ctx.arc(0, 0, r * HEAVY_CORE, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#ffd166';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-7, r + 4); ctx.lineTo(0, r + 10); ctx.lineTo(7, r + 4);
+  ctx.stroke();
+}
+
+function shapeShield(ctx, r, t){
+  ctx.strokeStyle = '#4ecdc4';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, r - SHIELD_RING_INSET, 0, TAU); ctx.stroke();
+  const a = t * SHIELD_DOT_RATE;
+  ctx.fillStyle = '#4ecdc4';
+  ctx.beginPath();
+  ctx.arc(Math.cos(a) * (r - SHIELD_RING_INSET), Math.sin(a) * (r - SHIELD_RING_INSET), SHIELD_DOT_R, 0, TAU);
+  ctx.fill();
+}
+
+function shapeSlowmo(ctx, r, t){
+  const pulse = 1 + Math.sin(t * SLOWMO_PULSE_RATE) * 0.08;
+  ctx.globalAlpha *= SLOWMO_BUBBLE_ALPHA;
+  ctx.fillStyle = '#7fb2ff';
+  ctx.beginPath(); ctx.arc(0, 0, r * pulse, 0, TAU); ctx.fill();
+  ctx.globalAlpha /= SLOWMO_BUBBLE_ALPHA;
+  ctx.strokeStyle = '#7fb2ff';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(0, 0, r * pulse, 0, TAU); ctx.stroke();
+  /* clock hands: reads as "time" at a glance */
+  ctx.strokeStyle = '#eaf2ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -r * 0.55); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, 0);
+  ctx.lineTo(Math.cos(t * SLOWMO_HAND_RATE) * r * 0.45, Math.sin(t * SLOWMO_HAND_RATE) * r * 0.45);
+  ctx.stroke();
+}
+
+function shapeMagnet(ctx, r){
+  ctx.strokeStyle = '#c39bff';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(0, 1, r * 0.62, Math.PI, TAU); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.62, 1); ctx.lineTo(-r * 0.62, r * 0.7);
+  ctx.moveTo(r * 0.62, 1); ctx.lineTo(r * 0.62, r * 0.7);
+  ctx.stroke();
+  ctx.strokeStyle = '#ff5d73';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.62, r * 0.7); ctx.lineTo(-r * 0.62, r * MAGNET_TIP);
+  ctx.moveTo(r * 0.62, r * 0.7); ctx.lineTo(r * 0.62, r * MAGNET_TIP);
+  ctx.stroke();
+}
+
+function shapeSaw(ctx, r){
+  ctx.beginPath();
+  const teeth = CFG.sawTeeth;
+  for (let i = 0; i < teeth * 2; i++){
+    const rr = i % 2 ? r * SAW_INNER : r;
+    const a = i / (teeth * 2) * TAU;
+    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#39415a'; ctx.fill();                 // HAZ-05 contrast pair
+  ctx.strokeStyle = '#ff5d73'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, r * SAW_HUB, 0, TAU); ctx.fillStyle = '#ff5d73'; ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, r * SAW_AXLE, 0, TAU); ctx.fillStyle = '#1a1e2b'; ctx.fill();
+}
+
+function shapeSpike(ctx, r){
+  ctx.beginPath();
+  ctx.moveTo(0, r * SPIKE_TAIL);
+  ctx.lineTo(-r * SPIKE_BODY, -r);
+  ctx.lineTo(r * SPIKE_BODY, -r);
+  ctx.closePath();
+  ctx.fillStyle = '#39415a'; ctx.fill();
+  ctx.strokeStyle = '#ff5d73'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, r * SPIKE_CORE_TAIL);
+  ctx.lineTo(-r * SPIKE_CORE_W, -r * 0.7);
+  ctx.lineTo(r * SPIKE_CORE_W, -r * 0.7);
+  ctx.closePath();
+  ctx.fillStyle = '#ff5d73'; ctx.fill();
+}
+
+function shapeSeeker(ctx, r, rot, eyeAng){
+  /* body */
+  ctx.beginPath();
+  ctx.moveTo(0, -r);
+  ctx.lineTo(r * SEEKER_W, 0);
+  ctx.lineTo(0, r * SEEKER_H);
+  ctx.lineTo(-r * SEEKER_W, 0);
+  ctx.closePath();
+  ctx.fillStyle = '#2a2140'; ctx.fill();               // HAZ-05: dark fill...
+  ctx.strokeStyle = '#c39bff'; ctx.lineWidth = 2; ctx.stroke();   // ...bright outline
+  /* rotors */
+  ctx.strokeStyle = 'rgba(195,155,255,0.7)';
+  ctx.lineWidth = 2;
+  const rr = r * 0.5, ra = rot * 3;
+  for (let i = 0; i < 2; i++){
+    const sx = i ? r * SEEKER_W : -r * SEEKER_W;
+    ctx.beginPath();
+    ctx.ellipse(sx, r * SEEKER_ROTOR_Y, rr, rr * 0.28, ra, 0, TAU);
+    ctx.stroke();
+  }
+  /* eye */
+  ctx.fillStyle = '#ff5d73';
+  ctx.beginPath();
+  ctx.arc(Math.cos(eyeAng) * SEEKER_EYE_OFF, Math.sin(eyeAng) * SEEKER_EYE_OFF, r * SEEKER_EYE_R, 0, TAU);
+  ctx.fill();
+}
+
+function shapeLava(ctx, w, h){
+  const glow = ctx.createLinearGradient(0, -h * 0.5, 0, h * 0.1);
+  glow.addColorStop(0, 'rgba(255,93,115,0)');
+  glow.addColorStop(1, 'rgba(255,93,115,0.5)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(-w / 2, -h * 0.5, w, h * 0.6);
+  const body = ctx.createLinearGradient(0, h * 0.1, 0, h * 0.5);
+  body.addColorStop(0, '#ff5d73');
+  body.addColorStop(1, '#701a28');
+  ctx.fillStyle = body;
+  ctx.fillRect(-w / 2, h * 0.1, w, h * 0.4);
+}
+
+/* Menu legend icons: same shapes, same palette, no images (UI-05). */
+export function paintIcon(canvas, kind){
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, CFG.dprCap);
+  const w = canvas.clientWidth || 44, h = canvas.clientHeight || 44;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  const R = Math.min(w, h) * 0.36;
+  const t = 0.8;                       // fixed animation phase: lively but stable
+  if (kind === 'saw'){ ctx.rotate(0.35); shapeSaw(ctx, R * 1.15); }
+  else if (kind === 'spike') shapeSpike(ctx, R * 0.95);
+  else if (kind === 'seeker') shapeSeeker(ctx, R, 0.6, 0.9);
+  else if (kind === 'star'){ ctx.rotate(0.2); shapeStar(ctx, R, '#ffd166', STAR_CORE); }
+  else if (kind === 'shield') shapeShield(ctx, R * 1.05, t);
+  else if (kind === 'slowmo') shapeSlowmo(ctx, R * 1.05, t);
+  else if (kind === 'magnet') shapeMagnet(ctx, R * 1.05);
+  else if (kind === 'heavy') shapeHeavy(ctx, R, t);
+  else if (kind === 'lava') shapeLava(ctx, w, h);
+  ctx.restore();
+}
+
 export function createRenderer(canvas){
   const ctx = canvas.getContext('2d');
 
@@ -172,30 +354,6 @@ export function createRenderer(canvas){
   }
 
   /* -------------------------------------------------------------- pickups */
-  function starPath(R){
-    ctx.beginPath();
-    for (let i = 0; i < 10; i++){
-      const rr = i % 2 ? R * STAR_INNER : R;
-      const a = -Math.PI / 2 + i * Math.PI / 5;
-      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
-    }
-    ctx.closePath();
-  }
-
-  function drawStarShape(R, fill, core){
-    ctx.fillStyle = fill;
-    starPath(R);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(10,12,20,0.55)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    if (core > 0){
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      starPath(core);
-      ctx.fill();
-    }
-  }
-
   function drawPickup(g, p){
     const blinkWindow = p.type === 'star' ? CFG.starBlink : CFG.pickupBlink;
     /* PICK-01: blink warning during the final seconds before despawn */
@@ -211,59 +369,16 @@ export function createRenderer(canvas){
       ctx.rotate(p.t * CFG.starSpin);
       const s = 1 + Math.sin(p.t * CFG.starPulse) * STAR_PULSE;
       ctx.scale(s, s);
-      drawStarShape(p.r, '#ffd166', STAR_CORE);
+      shapeStar(ctx, p.r, '#ffd166', STAR_CORE);
     } else if (p.type === 'heavy'){
-      ctx.rotate(-p.t * CFG.starSpin * 0.6);
-      drawStarShape(p.r, '#c98b3c', 0);
-      ctx.rotate(p.t * CFG.starSpin * 0.6);
-      /* heavier: a dark core and a downward chevron saying "this drags you down" */
-      ctx.fillStyle = 'rgba(20,14,6,0.75)';
-      ctx.beginPath(); ctx.arc(0, 0, p.r * HEAVY_CORE, 0, TAU); ctx.fill();
-      ctx.strokeStyle = '#ffd166';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(-7, p.r + 4); ctx.lineTo(0, p.r + 10); ctx.lineTo(7, p.r + 4);
-      ctx.stroke();
+      shapeHeavy(ctx, p.r, p.t);
     } else if (p.type === 'shield'){
-      ctx.strokeStyle = '#4ecdc4';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(0, 0, p.r - SHIELD_RING_INSET, 0, TAU); ctx.stroke();
-      const a = p.t * SHIELD_DOT_RATE;
-      ctx.fillStyle = '#4ecdc4';
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * (p.r - SHIELD_RING_INSET), Math.sin(a) * (p.r - SHIELD_RING_INSET), SHIELD_DOT_R, 0, TAU);
-      ctx.fill();
+      shapeShield(ctx, p.r, p.t);
     } else if (p.type === 'slowmo'){
-      const pulse = 1 + Math.sin(p.t * SLOWMO_PULSE_RATE) * 0.08;
-      ctx.globalAlpha = alpha * SLOWMO_BUBBLE_ALPHA;
-      ctx.fillStyle = '#7fb2ff';
-      ctx.beginPath(); ctx.arc(0, 0, p.r * pulse, 0, TAU); ctx.fill();
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = '#7fb2ff';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(0, 0, p.r * pulse, 0, TAU); ctx.stroke();
-      /* clock hands: reads as "time" at a glance */
-      ctx.strokeStyle = '#eaf2ff';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -p.r * 0.55); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(p.t * SLOWMO_HAND_RATE) * p.r * 0.45, Math.sin(p.t * SLOWMO_HAND_RATE) * p.r * 0.45);
-      ctx.stroke();
+      shapeSlowmo(ctx, p.r, p.t);
     } else {                                   // magnet
       ctx.rotate(Math.sin(p.t * MAGNET_SWAY_RATE) * MAGNET_SWAY);
-      ctx.strokeStyle = '#c39bff';
-      ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(0, 1, p.r * 0.62, Math.PI, TAU); ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-p.r * 0.62, 1); ctx.lineTo(-p.r * 0.62, p.r * 0.7);
-      ctx.moveTo(p.r * 0.62, 1); ctx.lineTo(p.r * 0.62, p.r * 0.7);
-      ctx.stroke();
-      ctx.strokeStyle = '#ff5d73';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(-p.r * 0.62, p.r * 0.7); ctx.lineTo(-p.r * 0.62, p.r * MAGNET_TIP);
-      ctx.moveTo(p.r * 0.62, p.r * 0.7); ctx.lineTo(p.r * 0.62, p.r * MAGNET_TIP);
-      ctx.stroke();
+      shapeMagnet(ctx, p.r);
     }
 
     /* magnet tether: shows which stars are being pulled */
@@ -283,18 +398,7 @@ export function createRenderer(canvas){
 
   /* --------------------------------------------------------------- hazards */
   function drawSawBody(r){
-    ctx.beginPath();
-    const teeth = CFG.sawTeeth;
-    for (let i = 0; i < teeth * 2; i++){
-      const rr = i % 2 ? r * SAW_INNER : r;
-      const a = i / (teeth * 2) * TAU;
-      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
-    }
-    ctx.closePath();
-    ctx.fillStyle = '#39415a'; ctx.fill();                 // HAZ-05 contrast pair
-    ctx.strokeStyle = '#ff5d73'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, r * SAW_HUB, 0, TAU); ctx.fillStyle = '#ff5d73'; ctx.fill();
-    ctx.beginPath(); ctx.arc(0, 0, r * SAW_AXLE, 0, TAU); ctx.fillStyle = '#1a1e2b'; ctx.fill();
+    shapeSaw(ctx, r);
   }
 
   function drawSaw(h){
@@ -332,19 +436,7 @@ export function createRenderer(canvas){
     }
     ctx.save();
     ctx.translate(h.x, h.cy);
-    ctx.beginPath();
-    ctx.moveTo(0, h.r * SPIKE_TAIL);
-    ctx.lineTo(-h.r * SPIKE_BODY, -h.r);
-    ctx.lineTo(h.r * SPIKE_BODY, -h.r);
-    ctx.closePath();
-    ctx.fillStyle = '#39415a'; ctx.fill();
-    ctx.strokeStyle = '#ff5d73'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, h.r * SPIKE_CORE_TAIL);
-    ctx.lineTo(-h.r * SPIKE_CORE_W, -h.r * 0.7);
-    ctx.lineTo(h.r * SPIKE_CORE_W, -h.r * 0.7);
-    ctx.closePath();
-    ctx.fillStyle = '#ff5d73'; ctx.fill();
+    shapeSpike(ctx, h.r);
     ctx.restore();
   }
 
@@ -357,31 +449,8 @@ export function createRenderer(canvas){
     ctx.translate(h.x, h.cy);
     ctx.globalAlpha = blink;
     ctx.rotate(Math.sin(h.rot * SEEKER_ROTOR_TILT) * SEEKER_TILT_SWAY);
-    /* body */
-    ctx.beginPath();
-    ctx.moveTo(0, -h.r);
-    ctx.lineTo(h.r * SEEKER_W, 0);
-    ctx.lineTo(0, h.r * SEEKER_H);
-    ctx.lineTo(-h.r * SEEKER_W, 0);
-    ctx.closePath();
-    ctx.fillStyle = '#2a2140'; ctx.fill();               // HAZ-05: dark fill...
-    ctx.strokeStyle = '#c39bff'; ctx.lineWidth = 2; ctx.stroke();   // ...bright outline
-    /* rotors */
-    ctx.strokeStyle = 'rgba(195,155,255,0.7)';
-    ctx.lineWidth = 2;
-    const rr = h.r * 0.5, ra = h.rot * 3;
-    for (let i = 0; i < 2; i++){
-      const sx = i ? h.r * SEEKER_W : -h.r * SEEKER_W;
-      ctx.beginPath();
-      ctx.ellipse(sx, h.r * SEEKER_ROTOR_Y, rr, rr * 0.28, ra, 0, TAU);
-      ctx.stroke();
-    }
-    /* eye looks at the ball */
     const ea = Math.atan2(g.ball.y - h.cy, g.ball.x - h.x);
-    ctx.fillStyle = '#ff5d73';
-    ctx.beginPath();
-    ctx.arc(Math.cos(ea) * SEEKER_EYE_OFF, Math.sin(ea) * SEEKER_EYE_OFF, h.r * SEEKER_EYE_R, 0, TAU);
-    ctx.fill();
+    shapeSeeker(ctx, h.r, h.rot, ea);
     ctx.restore();
   }
 

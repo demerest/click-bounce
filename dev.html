@@ -38,32 +38,77 @@ window.addEventListener('error', function(e){
 </div>
 
 <div id="menu" class="overlay" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
-  <div class="panel">
+  <div class="panel wide">
     <p class="eyebrow">ONE-CLICK ARCADE</p>
     <h1 id="menuTitle">KEEP <em>IT&nbsp;UP</em></h1>
-    <p class="tag">The jelly ball knows only one word: <b>boing</b>. Keep it off the floor.</p>
-    <div class="demo" aria-hidden="true"><div class="demo-ball"></div><div class="demo-shadow"></div></div>
-    <p id="dailyStrip" class="daily"></p>
-    <div id="skins" class="swatches" role="group" aria-label="Ball skins"></div>
-    <div id="badges" class="badges" role="group" aria-label="Achievements"></div>
-    <button id="startBtn" class="big" type="button">START BOUNCING</button>
-    <div class="modes">
-      <button id="climbBtn" class="ghost" type="button">CLIMB MODE (C)</button>
-      <button id="dailyBtn" class="ghost" type="button">DAILY RUN (D)</button>
+    <p class="tag">The jelly ball knows only one word: <b>boing</b>. Pick a mode.</p>
+    <div class="panelBody">
+      <section class="msec">
+        <h2>The one rule</h2>
+        <ul class="rules">
+          <li><b>Click / tap near the ball</b> &mdash; it is pushed <b>away</b> from your finger, so where you click steers it.</li>
+          <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing, and chain bounces inside 2.2s for <b>combo</b> (scoring caps at &times;10).</li>
+          <li>A miss only breaks your combo. <b>P</b> / <b>Esc</b> pauses, <b>M</b> mutes.</li>
+        </ul>
+      </section>
+      <section class="msec">
+        <h2 class="hGold">Classic mode</h2>
+        <ul class="rules">
+          <li>Score = bounce points &times; combo + pickups. Your best is saved.</li>
+          <li>The <b>floor</b> kills. Hazards start after 9s and never spawn on top of you.</li>
+          <li>Skim a hazard without touching it for a <b>+15 near-miss</b>.</li>
+        </ul>
+      </section>
+      <section class="msec">
+        <h2 class="hRed">Climb mode &mdash; the hard one</h2>
+        <ul class="rules">
+          <li>Score = <b>metres climbed</b>. The camera only ever moves up.</li>
+          <li>Every 300px a wall of saws blocks the sky with <b>one dashed corridor</b> &mdash; that is your way through.</li>
+          <li><b>Lava</b> rises from below after a 3s grace. It is your floor now.</li>
+          <li>Corridor stars pay +5m; every third wall hides a shield.</li>
+        </ul>
+      </section>
+      <section class="msec">
+        <h2 class="hViolet">Daily run</h2>
+        <p id="dailyStrip" class="daily"></p>
+        <ul class="rules">
+          <li>Classic rules, but today's date remixes gravity, saw pace, saw speed and star rate.</li>
+          <li>Everyone gets the same mix; only your best for the day is remembered.</li>
+        </ul>
+      </section>
+      <section class="msec">
+        <h2>Hazards &mdash; what kills you</h2>
+        <ul class="legend">
+          <li><canvas class="icon" data-icon="saw" aria-hidden="true"></canvas><div><b>Saw</b> &mdash; crosses the screen; a red edge flash warns you before it arrives.</div></li>
+          <li><canvas class="icon" data-icon="spike" aria-hidden="true"></canvas><div><b>Spike</b> &mdash; a ceiling marker telegraphs for 1s, then it drops where you <i>were</i>. Keep moving.</div></li>
+          <li><canvas class="icon" data-icon="seeker" aria-hidden="true"></canvas><div><b>Drone</b> &mdash; after 60s. Slow homing, capped turn rate, dies on walls. Out-fly it.</div></li>
+          <li><canvas class="icon" data-icon="lava" aria-hidden="true"></canvas><div><b>Lava</b> (climb) &mdash; rises forever after its grace. Touching it ends the run.</div></li>
+        </ul>
+      </section>
+      <section class="msec">
+        <h2>Pickups &mdash; what helps you</h2>
+        <ul class="legend">
+          <li><canvas class="icon" data-icon="star" aria-hidden="true"></canvas><div><b>Star</b> &mdash; +40 points (+5m in climb). Blinks just before it despawns.</div></li>
+          <li><canvas class="icon" data-icon="shield" aria-hidden="true"></canvas><div><b>Shield</b> &mdash; eats exactly one hazard hit, then pops.</div></li>
+          <li><canvas class="icon" data-icon="slowmo" aria-hidden="true"></canvas><div><b>Slow-mo</b> &mdash; time crawls at 45% for 4s. Saws included.</div></li>
+          <li><canvas class="icon" data-icon="magnet" aria-hidden="true"></canvas><div><b>Magnet</b> &mdash; stars within 150px fly to you for 6s.</div></li>
+          <li><canvas class="icon" data-icon="heavy" aria-hidden="true"></canvas><div><b>Heavy star</b> &mdash; +200 points, but gravity +15% for 8s. Greed is a choice.</div></li>
+        </ul>
+      </section>
+      <section class="msec">
+        <h2>Progress</h2>
+        <div id="badges" class="badges" role="group" aria-label="Achievements"></div>
+        <p class="mini">Badges: &times;10 combo &middot; 3 stars in one run &middot; survive 120s &middot; a shield save.</p>
+        <div id="skins" class="swatches" role="group" aria-label="Ball skins"></div>
+        <p class="mini">Skins unlock at best 0 / 600 / 1800 / 4000. Click one to wear it.</p>
+      </section>
     </div>
-    <p class="hint">space / enter also works &middot; M mutes &middot; P pauses</p>
-    <ul class="how">
-      <li><b>Click / tap near the ball</b> &mdash; it gets pushed <b>away</b> from your finger, so you can steer it.</li>
-      <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing &mdash; and chain <b>combos</b> (max &times;10).</li>
-      <li>Missing breaks your combo, nothing more. The <b>floor</b> and <b>hazards</b> end the run.</li>
-      <li><b class="c-gold">&#9733; Star</b> +40 &middot; <b class="c-teal">teal ring</b> = shield that eats one hit.</li>
-      <li><b class="c-blue">blue bubble</b> = time slows to a crawl for 4s &middot; <b class="c-violet">violet loop</b> = stars fly to you for 6s.</li>
-      <li><b class="c-bronze">dark gold star</b> = +200, but you get <b>heavy</b> for 8s. Greed is a choice.</li>
-      <li>Watch the edges: <b class="c-hot">red flash</b> = saw incoming, <b class="c-hot">ceiling marker</b> = spike dropping where you <i>were</i>. After 60s a <b>drone</b> hunts you &mdash; it dies on walls.</li>
-      <li>Skim a saw for a <b>near-miss bonus</b>. <b>P</b> or <b>Esc</b> pauses.</li>
-      <li><b>Climb mode</b>: race upward for metres while lava rises; follow the <b class="c-teal">dashed corridor</b> through each saw band.</li>
-      <li><b>Badges</b> for &times;10, 3 stars, 120s and a shield save &middot; <b>skins</b> unlock at best-score thresholds &middot; the <b>daily</b> remixes the physics each day.</li>
-    </ul>
+    <div class="panelFoot">
+      <button id="startBtn" class="modeBtn gold" type="button">START CLASSIC<span class="kbd">space / enter</span></button>
+      <button id="climbBtn" class="modeBtn red" type="button">CLIMB<span class="kbd">C</span></button>
+      <button id="dailyBtn" class="modeBtn violet" type="button">DAILY<span class="kbd">D</span></button>
+      <p class="hint">the ball forgives misses &mdash; never the floor</p>
+    </div>
   </div>
 </div>
 
