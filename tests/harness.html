@@ -548,6 +548,28 @@ async function main(){
   ok(g.magnetT <= CFG.magnetStackCap, 'magnet stacking is capped', g.magnetT);
   ok(g.heavyT <= CFG.heavyStackCap, 'heavy stacking is capped', g.heavyT);
 
+  /* scheduling: utility pickups must appear inside an ordinary run, not after it */
+  g = fresh(800, 600);
+  const seenP = [];
+  let firstSlow = -1, firstMag = -1, nSlow = 0, nMag = 0;
+  for (let i = 0; i < 60 * 60; i++){
+    g.ball.x = -9999; g.ball.y = -9999; g.ball.vy = 0;   // never collect, never die
+    K.update(g, DT);
+    for (let pi = 0; pi < g.pickups.length; pi++){
+      const p = g.pickups[pi];
+      if (seenP.indexOf(p) >= 0) continue;
+      seenP.push(p);
+      if (p.type === 'slowmo'){ nSlow++; if (firstSlow < 0) firstSlow = g.elapsed; }
+      if (p.type === 'magnet'){ nMag++; if (firstMag < 0) firstMag = g.elapsed; }
+    }
+  }
+  /* +4s tolerance: the 4-pickup cap (PICK-04) can briefly delay a spawn */
+  ok(firstSlow >= 0 && firstSlow <= CFG.slowmoFirst + 4, 'a slow-mo bubble appears early in a run', firstSlow);
+  ok(firstMag >= 0 && firstMag <= CFG.magnetFirst + 4, 'a magnet appears early in a run', firstMag);
+  ok(firstSlow < 20 && firstMag < 20, 'both can appear within a 20s run');
+  ok(nSlow >= 2, 'slow-mo recurs within a minute', nSlow);
+  ok(nMag >= 3, 'magnet recurs within a minute', nMag);
+
   /* ================================================= 16. death and states */
   sec('16. death sequence, slow-mo, restart lock (UI-04, Phase 2)');
   g = fresh(800, 600);
