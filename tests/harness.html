@@ -177,8 +177,9 @@ async function main(){
   g.heavyT = 1;
   near(K.gravityNow(g), CFG.gravityMax * CFG.heavyGravityMul, 1e-9, 'heavy star multiplies gravity by 1.15');
   ok(K.gravityNow(g) <= CFG.gravityHardCap, 'the heavy multiplier cannot exceed the hard cap (DIFF-05)');
-  g.slowmoT = 1;
-  ok(K.gravityNow(g) < CFG.gravityMax, 'slow-mo lowers gravity');
+  g.heavyT = 0; g.slowmoT = 1;
+  eq(K.gravityNow(g), CFG.gravityMax, 'slow-mo no longer touches gravity - it dilates time');
+  near(K.timeScaleNow(g), CFG.slowmoTimeScale, 1e-9, 'slow-mo runs the sim at slowmoTimeScale');
   g.slowmoT = 0; g.heavyT = 0;
 
   /* ============================================ 5. the core verb: bouncing */
@@ -496,11 +497,29 @@ async function main(){
   const gBefore = K.gravityNow(g);
   K.updatePickups(g, DT);
   near(g.slowmoT, CFG.slowmoTime, 1e-6, 'slow-mo bubble lasts 4s');
-  near(K.gravityNow(g), gBefore * CFG.slowmoGravityMul, 1e-6, 'slow-mo halves gravity');
+  eq(K.gravityNow(g), gBefore, 'slow-mo leaves gravity untouched');
+  near(K.timeScaleNow(g), CFG.slowmoTimeScale, 1e-9, 'slow-mo dilates simulated time');
   ok(g.pickups.length === 0, 'the bubble is consumed on pickup');
   g.slowmoT = 0.01;
   K.tickEffects(g, DT);
   eq(g.slowmoT, 0, 'slow-mo expires cleanly');
+
+  /* behavioural: free-fall distance scales with the square of the dilation, so
+   * 0.45 reads as roughly a quarter of the speed - a real slow-motion feel */
+  const fallDist = function(withSlow){
+    const gg = fresh(800, 600);
+    gg.ball.x = 400; gg.ball.y = 100; gg.ball.vx = 0; gg.ball.vy = 0;
+    gg.hazards.length = 0; gg.pickups.length = 0;
+    if (withSlow) gg.slowmoT = 4;
+    const y0 = gg.ball.y;
+    for (let i = 0; i < 30; i++) K.update(gg, DT);
+    return gg.ball.y - y0;
+  };
+  const dNorm = fallDist(false), dSlow = fallDist(true);
+  ok(dNorm > 50, 'the control fall moved', dNorm);
+  near(dSlow / dNorm, CFG.slowmoTimeScale * CFG.slowmoTimeScale, 0.02,
+       'falling under slow-mo covers ~s^2 of the distance - visibly slow');
+  ok(dSlow < dNorm * 0.4, 'slow-mo is dramatically slower than the old half-gravity feel', dSlow + ' vs ' + dNorm);
 
   g = fresh(800, 600);
   g.pickups.length = 0;

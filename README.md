@@ -27,11 +27,12 @@ Quick taps are weak; letting the ball fall a beat gives a full-power boing.
 Chain bounces inside the 2.2 s window for combo (scoring caps at ×10).
 Miss and the combo breaks — nothing worse. The floor and hazards end the run.
 
-Pickups: **★ star** +40 · **teal ring** one-hit shield · **blue bubble** half
-gravity 4 s · **violet loop** star magnet 6 s · **bronze star** +200 but +15 %
-gravity for 8 s. Hazards: **saws** cross the screen, **spikes** telegraph on the
-ceiling for 1 s then drop where you *were*, and after 60 s a **drone** hunts you
-with a capped turn rate and dies on walls. Skim a hazard for a +15 near-miss.
+Pickups: **★ star** +40 · **teal ring** one-hit shield · **blue bubble** time
+dilates to 45 % for 4 s · **violet loop** star magnet 6 s · **bronze star** +200
+but +15 % gravity for 8 s. Hazards: **saws** cross the screen, **spikes**
+telegraph on the ceiling for 1 s then drop where you *were*, and after 60 s a
+**drone** hunts you with a capped turn rate and dies on walls. Skim a hazard for
+a +15 near-miss.
 
 ### Modes and meta
 

@@ -8,7 +8,7 @@ import { clamp } from './math.js';
 import { LS } from './storage.js';
 import { DOM, showFatal } from './dom.js';
 import { Snd } from './audio.js';
-import { bgBaseHue, createGame, gravityNow, resetRun } from './state.js';
+import { bgBaseHue, createGame, gravityNow, resetRun, timeScaleNow } from './state.js';
 import { addEdgeWarn, addRing, addScore, addText, burst, shakeBy, updateFx } from './fx.js';
 import { attemptBounce, ballHitFloor, updateBall } from './ball.js';
 import { spawnPickup, spawnSaw, spawnSeeker, spawnSpike, sawInterval, updateSpawners } from './spawn.js';
@@ -64,8 +64,8 @@ export function update(g, dtReal){
   const hitStopActive = g.hitStop > 0 && g.state === 'play';
   if (g.hitStop > 0) g.hitStop = Math.max(0, g.hitStop - dtReal);
 
-  const fxDt = dtReal * (hitStopActive ? 1 : g.timeScale);
-  const physDt = hitStopActive ? 0 : dtReal * g.timeScale;
+  const fxDt = dtReal * (hitStopActive ? 1 : timeScaleNow(g));
+  const physDt = hitStopActive ? 0 : dtReal * timeScaleNow(g);
 
   updateFx(g, fxDt);
   achTick(g, fxDt);                       // Phase 4: badge conditions + toast clock
@@ -74,7 +74,8 @@ export function update(g, dtReal){
   const playing = g.state === 'play';
   if (playing){
     g.elapsed += physDt;
-    tickEffects(g, physDt);
+    /* effect durations are real-time: slow-mo must not extend itself */
+    tickEffects(g, dtReal * g.timeScale);
   }
 
   const gravity = gravityNow(g);
@@ -206,6 +207,7 @@ export function boot(){
         pauseGame: pauseGame, resumeGame: resumeGame, togglePause: togglePause,
         quitToMenu: quitToMenu, toggleMute: toggleMute, updateFlow: updateFlow,
         attemptBounce: attemptBounce, gravityNow: gravityNow, resetRun: resetRun, bgBaseHue: bgBaseHue,
+        timeScaleNow: timeScaleNow,
         spawnSaw: spawnSaw, spawnSpike: spawnSpike, spawnSeeker: spawnSeeker,
         spawnPickup: spawnPickup, updateSpawners: updateSpawners, sawInterval: sawInterval,
         copyShare: copyShare, renderMeta: renderMeta,

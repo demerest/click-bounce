@@ -229,7 +229,7 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
       <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing &mdash; and chain <b>combos</b> (max &times;10).</li>
       <li>Missing breaks your combo, nothing more. The <b>floor</b> and <b>hazards</b> end the run.</li>
       <li><b class="c-gold">&#9733; Star</b> +40 &middot; <b class="c-teal">teal ring</b> = shield that eats one hit.</li>
-      <li><b class="c-blue">blue bubble</b> = half gravity for 4s &middot; <b class="c-violet">violet loop</b> = stars fly to you for 6s.</li>
+      <li><b class="c-blue">blue bubble</b> = time slows to a crawl for 4s &middot; <b class="c-violet">violet loop</b> = stars fly to you for 6s.</li>
       <li><b class="c-bronze">dark gold star</b> = +200, but you get <b>heavy</b> for 8s. Greed is a choice.</li>
       <li>Watch the edges: <b class="c-hot">red flash</b> = saw incoming, <b class="c-hot">ceiling marker</b> = spike dropping where you <i>were</i>. After 60s a <b>drone</b> hunts you &mdash; it dies on walls.</li>
       <li>Skim a saw for a <b>near-miss bonus</b>. <b>P</b> or <b>Esc</b> pauses.</li>
@@ -463,7 +463,7 @@ const CFG = {
   slowmoIntervalMax: 12,
   slowmoTime: 4,
   slowmoStackCap: 6,            // pillar 4
-  slowmoGravityMul: 0.5,
+  slowmoTimeScale: 0.45,        // true time dilation: the whole sim runs at 45%
   slowmoR: 15,
 
   magnetFirst: 9,
@@ -1078,13 +1078,18 @@ function resetRun(g){
   resetBall(g);
 }
 
-/* DIFF-01 ramp, then daily + pickup multipliers, then the hard cap (DIFF-05). */
+/* DIFF-01 ramp, then daily + pickup multipliers, then the hard cap (DIFF-05).
+ * Slow-mo is deliberately NOT here: it dilates time (timeScaleNow), not gravity. */
 function gravityNow(g){
   let gr = Math.min(CFG.gravityMax, CFG.gravityBase + g.elapsed * CFG.gravityRamp);
   if (g.daily) gr *= g.daily.gravityMul;
-  if (g.slowmoT > 0) gr *= CFG.slowmoGravityMul;
   if (g.heavyT > 0) gr *= CFG.heavyGravityMul;
   return Math.min(gr, CFG.gravityHardCap);
+}
+
+/* Death slow-motion and the slow-mo bubble both scale simulated time. */
+function timeScaleNow(g){
+  return g.timeScale * (g.slowmoT > 0 ? CFG.slowmoTimeScale : 1);
 }
 
 function countKind(g, kind){
@@ -3413,8 +3418,8 @@ function update(g, dtReal){
   const hitStopActive = g.hitStop > 0 && g.state === 'play';
   if (g.hitStop > 0) g.hitStop = Math.max(0, g.hitStop - dtReal);
 
-  const fxDt = dtReal * (hitStopActive ? 1 : g.timeScale);
-  const physDt = hitStopActive ? 0 : dtReal * g.timeScale;
+  const fxDt = dtReal * (hitStopActive ? 1 : timeScaleNow(g));
+  const physDt = hitStopActive ? 0 : dtReal * timeScaleNow(g);
 
   updateFx(g, fxDt);
   achTick(g, fxDt);                       // Phase 4: badge conditions + toast clock
@@ -3423,7 +3428,8 @@ function update(g, dtReal){
   const playing = g.state === 'play';
   if (playing){
     g.elapsed += physDt;
-    tickEffects(g, physDt);
+    /* effect durations are real-time: slow-mo must not extend itself */
+    tickEffects(g, dtReal * g.timeScale);
   }
 
   const gravity = gravityNow(g);
@@ -3555,6 +3561,7 @@ function boot(){
         pauseGame: pauseGame, resumeGame: resumeGame, togglePause: togglePause,
         quitToMenu: quitToMenu, toggleMute: toggleMute, updateFlow: updateFlow,
         attemptBounce: attemptBounce, gravityNow: gravityNow, resetRun: resetRun, bgBaseHue: bgBaseHue,
+        timeScaleNow: timeScaleNow,
         spawnSaw: spawnSaw, spawnSpike: spawnSpike, spawnSeeker: spawnSeeker,
         spawnPickup: spawnPickup, updateSpawners: updateSpawners, sawInterval: sawInterval,
         copyShare: copyShare, renderMeta: renderMeta,

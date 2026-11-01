@@ -122,13 +122,18 @@ export function resetRun(g){
   resetBall(g);
 }
 
-/* DIFF-01 ramp, then daily + pickup multipliers, then the hard cap (DIFF-05). */
+/* DIFF-01 ramp, then daily + pickup multipliers, then the hard cap (DIFF-05).
+ * Slow-mo is deliberately NOT here: it dilates time (timeScaleNow), not gravity. */
 export function gravityNow(g){
   let gr = Math.min(CFG.gravityMax, CFG.gravityBase + g.elapsed * CFG.gravityRamp);
   if (g.daily) gr *= g.daily.gravityMul;
-  if (g.slowmoT > 0) gr *= CFG.slowmoGravityMul;
   if (g.heavyT > 0) gr *= CFG.heavyGravityMul;
   return Math.min(gr, CFG.gravityHardCap);
+}
+
+/* Death slow-motion and the slow-mo bubble both scale simulated time. */
+export function timeScaleNow(g){
+  return g.timeScale * (g.slowmoT > 0 ? CFG.slowmoTimeScale : 1);
 }
 
 export function countKind(g, kind){

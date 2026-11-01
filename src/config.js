@@ -182,7 +182,7 @@ export const CFG = {
   slowmoIntervalMax: 12,
   slowmoTime: 4,
   slowmoStackCap: 6,            // pillar 4
-  slowmoGravityMul: 0.5,
+  slowmoTimeScale: 0.45,        // true time dilation: the whole sim runs at 45%
   slowmoR: 15,
 
   magnetFirst: 9,
