@@ -567,7 +567,7 @@ async function main(){
   ok(firstSlow >= 0 && firstSlow <= CFG.slowmoFirst + 4, 'a slow-mo bubble appears early in a run', firstSlow);
   ok(firstMag >= 0 && firstMag <= CFG.magnetFirst + 4, 'a magnet appears early in a run', firstMag);
   ok(firstSlow < 20 && firstMag < 20, 'both can appear within a 20s run');
-  ok(nSlow >= 2, 'slow-mo recurs within a minute', nSlow);
+  ok(nSlow >= 4, 'slow-mo recurs often within a minute', nSlow);
   ok(nMag >= 3, 'magnet recurs within a minute', nMag);
 
   /* ================================================= 16. death and states */
