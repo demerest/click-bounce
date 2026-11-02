@@ -370,7 +370,7 @@ async function main(){
   g = fresh(800, 600);
   g.elapsed = CFG.seekerGate - 1; g.seekerTimer = 0;
   K.updateSpawners(g, DT);
-  eq(g.hazards.filter(h => h.kind === 'seeker').length, 0, 'no drone before 60s (Phase 3)');
+  eq(g.hazards.filter(h => h.kind === 'seeker').length, 0, 'no drone before the seeker gate (Phase 3)');
   g.elapsed = CFG.seekerGate; g.seekerTimer = 0;
   K.updateSpawners(g, DT);
   const drones = g.hazards.filter(h => h.kind === 'seeker');
@@ -573,8 +573,11 @@ async function main(){
   g = fresh(800, 600);
   const seenP = [];
   let firstSlow = -1, firstMag = -1, nSlow = 0, nMag = 0;
+  let firstHeavy = -1, firstSeek = -1, nHeavy = 0, nSeek = 0;
   for (let i = 0; i < 60 * 60; i++){
-    g.ball.x = -9999; g.ball.y = -9999; g.ball.vy = 0;   // never collect, never die
+    g.ball.x = g.W / 2; g.ball.y = g.H * 0.45; g.ball.vy = 0;   // hold mid-arena...
+    g.shield = true;                                           // ...absorbing every hit
+    if (g.state !== 'play'){ g.state = 'play'; g.deathT = 0; } // probe stays alive
     K.update(g, DT);
     for (let pi = 0; pi < g.pickups.length; pi++){
       const p = g.pickups[pi];
@@ -582,6 +585,13 @@ async function main(){
       seenP.push(p);
       if (p.type === 'slowmo'){ nSlow++; if (firstSlow < 0) firstSlow = g.elapsed; }
       if (p.type === 'magnet'){ nMag++; if (firstMag < 0) firstMag = g.elapsed; }
+      if (p.type === 'heavy'){ nHeavy++; if (firstHeavy < 0) firstHeavy = g.elapsed; }
+    }
+    for (let hi = 0; hi < g.hazards.length; hi++){
+      const h = g.hazards[hi];
+      if (h.kind !== 'seeker' || seenP.indexOf(h) >= 0) continue;
+      seenP.push(h);
+      nSeek++; if (firstSeek < 0) firstSeek = g.elapsed;
     }
   }
   /* +4s tolerance: the 4-pickup cap (PICK-04) can briefly delay a spawn */
@@ -590,6 +600,12 @@ async function main(){
   ok(firstSlow < 20 && firstMag < 20, 'both can appear within a 20s run');
   ok(nSlow >= 4, 'slow-mo recurs often within a minute', nSlow);
   ok(nMag >= 3, 'magnet recurs within a minute', nMag);
+  ok(firstHeavy >= 0 && firstHeavy <= CFG.heavyGate + CFG.heavyFirst + 4,
+     'a heavy star appears inside an ordinary run', firstHeavy);
+  ok(firstSeek >= 0 && firstSeek <= CFG.seekerGate + CFG.seekerFirstAfterGate + 4,
+     'a drone appears inside an ordinary run', firstSeek);
+  ok(nHeavy >= 2, 'heavy stars recur within a minute', nHeavy);
+  ok(nSeek >= 2, 'drones recur within a minute', nSeek);
 
   /* ================================================= 16. death and states */
   sec('16. death sequence, slow-mo, restart lock (UI-04, Phase 2)');
@@ -1275,6 +1291,20 @@ async function main(){
     let s = 0;
     for (let j = 3; j < d.length; j += 4) s += d[j];      // alpha channel: is anything drawn?
     if (s > 0) painted++;
+    if (ic.getAttribute('data-icon') === 'heavy'){
+      /* backing size varies with the tile's layout state (open/closed, media query),
+       * so scan a proportional margin: 0.14*h - 2 px of clear space at every size */
+      const er = Math.max(1, Math.floor(ic.height * 0.06));
+      let top = 0, bot = 0;
+      for (let y = 0; y < er; y++){
+        for (let x = 0; x < ic.width; x++){
+          top += d[(y * ic.width + x) * 4 + 3];
+          bot += d[((ic.height - 1 - y) * ic.width + x) * 4 + 3];
+        }
+      }
+      ok(top === 0 && bot === 0, 'the heavy star icon keeps its mark inside the tile (no clipped chevron)',
+         'top=' + top + ' bot=' + bot + ' size=' + ic.width + 'x' + ic.height);
+    }
   }
   eq(painted, icons.length, 'every legend icon is actually painted by the game renderer');
   ok(doc.getElementById('startBtn').classList.contains('gold'), 'classic button is gold');
@@ -1557,6 +1587,10 @@ async function main(){
   K.updateHud(G);
   K.step(DT);                                            // paint the field for eyeballing
   ok(G.pickups.length >= 6, 'a 1200x900 field carries a phone-density item cloud', G.pickups.length);
+  const msecs = mdoc.querySelectorAll('details.msec[name="howto"]');
+  if (msecs[5]) msecs[5].open = true;      // leave the pickup legend open for eyeballing
+  const heavyIcon = mdoc.querySelector('canvas[data-icon="heavy"]');
+  if (heavyIcon && heavyIcon.scrollIntoView) heavyIcon.scrollIntoView(false);
   ok(!fatal(), 'no runtime error after the density scene', fatal());
 
   /* ------------------------------------------------------------- teardown */

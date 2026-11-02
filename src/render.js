@@ -58,14 +58,17 @@ function shapeHeavy(ctx, r, t){
   ctx.rotate(-t * CFG.starSpin * 0.6);
   shapeStar(ctx, r, '#c98b3c', 0);
   ctx.rotate(t * CFG.starSpin * 0.6);
-  /* heavier: a dark core and a downward chevron saying "this drags you down" */
+  /* heavier: a dark core with a down arrow inside it - proportional to r, so it
+   * reads at icon size and can never clip outside the star or the legend tile */
   ctx.fillStyle = 'rgba(20,14,6,0.75)';
   ctx.beginPath(); ctx.arc(0, 0, r * HEAVY_CORE, 0, TAU); ctx.fill();
-  ctx.strokeStyle = '#ffd166';
-  ctx.lineWidth = 2.5;
+  ctx.fillStyle = '#ffd166';
   ctx.beginPath();
-  ctx.moveTo(-7, r + 4); ctx.lineTo(0, r + 10); ctx.lineTo(7, r + 4);
-  ctx.stroke();
+  ctx.moveTo(-r * 0.18, -r * 0.12);
+  ctx.lineTo(r * 0.18, -r * 0.12);
+  ctx.lineTo(0, r * 0.18);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function shapeShield(ctx, r, t){

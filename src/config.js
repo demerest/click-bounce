@@ -115,11 +115,11 @@ export const CFG = {
   spikeMarkWidth: 0.8,
   spikePulseRate: 18,
 
-  /* ---------------- seeker drone (HAZ-06, Phase 3, late game) ---------------- */
-  seekerGate: 60,               // "after 60 s" per ROADMAP Phase 3
-  seekerFirstAfterGate: 4,
-  seekerIntervalMin: 14,
-  seekerIntervalMax: 20,
+  /* ---------------- seeker drone (HAZ-06, Phase 3) ---------------- */
+  seekerGate: 20,               // elapsed seconds before drones may spawn
+  seekerFirstAfterGate: 2,
+  seekerIntervalMin: 10,
+  seekerIntervalMax: 16,
   seekerCap: 1,
   seekerWarnTime: 1.0,          // edge telegraph before it may connect (pillar 3)
   seekerSpeed: 132,             // slow homing
@@ -199,10 +199,10 @@ export const CFG = {
   magnetSpeed: 210,
   magnetR: 14,
 
-  heavyFirst: 30,
-  heavyGate: 25,                // elapsed seconds before heavy stars may spawn
-  heavyIntervalMin: 18,
-  heavyIntervalMax: 28,
+  heavyFirst: 8,
+  heavyGate: 10,                // elapsed seconds before heavy stars may spawn
+  heavyIntervalMin: 10,
+  heavyIntervalMax: 16,
   heavyTime: 8,
   heavyStackCap: 12,            // pillar 4
   heavyGravityMul: 1.15,
