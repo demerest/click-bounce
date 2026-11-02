@@ -12,7 +12,7 @@ import { Snd } from './audio.js';
 import { dailyIntervalFloor } from './daily.js';
 import { addEdgeWarn } from './fx.js';
 import { clamp, rand, TAU } from './math.js';
-import { countKind } from './state.js';
+import { countKind, densityMul, pickupCapNow } from './state.js';
 
 /* HAZ-02: at least spawnMargin of vertical separation, up to spawnRerolls attempts.
  * If the re-rolls run out (which happens whenever the ball sits mid-screen, where
@@ -166,7 +166,7 @@ function rollPickupPos(g){
 }
 
 export function spawnPickup(g, type){
-  if (g.pickups.length >= CFG.pickupCap) return null;         // PICK-04
+  if (g.pickups.length >= pickupCapNow(g)) return null;   // PICK-04, scaled by play area
   if (type === 'shield' && g.shield) return null;             // PICK-02
   const pos = rollPickupPos(g);
   const p = {
@@ -191,6 +191,7 @@ export function spikeInterval(g){
 
 export function updateSpawners(g, dt){
   if (g.state !== 'play') return;
+  const mul = densityMul(g);          // per-area item density: phone pace on every screen
 
   /* saws: DIFF-02 grace period is already baked into sawTimer by resetRun */
   g.sawTimer -= dt;
@@ -218,30 +219,33 @@ export function updateSpawners(g, dt){
   g.starTimer -= dt;
   if (g.starTimer <= 0){
     g.starTimer = spawnPickup(g, 'star')
-      ? rand(CFG.starIntervalMin, CFG.starIntervalMax) / (g.daily ? g.daily.starMul : 1)
+      ? rand(CFG.starIntervalMin, CFG.starIntervalMax) / ((g.daily ? g.daily.starMul : 1) * mul)
       : CFG.pickupRetry;
   }
 
   g.shieldTimer -= dt;
   if (g.shieldTimer <= 0){
     spawnPickup(g, 'shield');                                  // PICK-02: skipped while held
-    g.shieldTimer = rand(CFG.shieldIntervalMin, CFG.shieldIntervalMax);
+    g.shieldTimer = rand(CFG.shieldIntervalMin, CFG.shieldIntervalMax) / mul;
   }
 
   g.slowmoTimer -= dt;
   if (g.slowmoTimer <= 0){
-    g.slowmoTimer = spawnPickup(g, 'slowmo') ? rand(CFG.slowmoIntervalMin, CFG.slowmoIntervalMax) : CFG.pickupRetry;
+    g.slowmoTimer = spawnPickup(g, 'slowmo')
+      ? rand(CFG.slowmoIntervalMin, CFG.slowmoIntervalMax) / mul : CFG.pickupRetry;
   }
 
   g.magnetTimer -= dt;
   if (g.magnetTimer <= 0){
-    g.magnetTimer = spawnPickup(g, 'magnet') ? rand(CFG.magnetIntervalMin, CFG.magnetIntervalMax) : CFG.pickupRetry;
+    g.magnetTimer = spawnPickup(g, 'magnet')
+      ? rand(CFG.magnetIntervalMin, CFG.magnetIntervalMax) / mul : CFG.pickupRetry;
   }
 
   if (g.elapsed >= CFG.heavyGate){
     g.heavyTimer -= dt;
     if (g.heavyTimer <= 0){
-      g.heavyTimer = spawnPickup(g, 'heavy') ? rand(CFG.heavyIntervalMin, CFG.heavyIntervalMax) : CFG.pickupRetry;
+      g.heavyTimer = spawnPickup(g, 'heavy')
+        ? rand(CFG.heavyIntervalMin, CFG.heavyIntervalMax) / mul : CFG.pickupRetry;
     }
   }
 }

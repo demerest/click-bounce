@@ -463,9 +463,11 @@ async function main(){
   ok(minD >= CFG.spawnMargin, 'pickups never spawn within 130px of the ball (PICK-03)', minD);
 
   g = fresh(800, 600);
-  for (let i = 0; i < 12; i++) K.spawnPickup(g, 'star');
-  eq(g.pickups.length, CFG.pickupCap, 'at most 4 pickups coexist (PICK-04)');
-  eq(K.spawnPickup(g, 'star'), null, 'the cap refuses new pickups');
+  const capHere = K.pickupCapNow(g);
+  ok(capHere > CFG.pickupCap, 'an 800x600 field gets a scaled-up pickup cap', capHere);
+  for (let i = 0; i < capHere + 8; i++) K.spawnPickup(g, 'star');
+  eq(g.pickups.length, capHere, 'the coexisting-pickup cap scales with play area (PICK-04)');
+  eq(K.spawnPickup(g, 'star'), null, 'the scaled cap still refuses new pickups');
 
   g = fresh(800, 600);
   g.pickups.length = 0; g.shield = true;
@@ -980,6 +982,9 @@ async function main(){
 
   /* =========================== 32. leave a rich scene for visual inspection */
   sec('32. composed scene (eyeball the first iframe)');
+  f.style.width = '800px'; f.style.height = '600px';   // pin the field: the pickup cap scales with area
+  await sleep(120);
+  win.dispatchEvent(new win.Event('resize'));
   K.startGame(G);
   G.elapsed = 65;
   G.slowmoT = 3; G.magnetT = 4; G.heavyT = 5;
@@ -1504,6 +1509,55 @@ async function main(){
     ok(starless === 0, 'H=' + H + ': stars are on screen at every step of the climb', starless + ' starless samples');
   }
   ok(!fatal(), 'no runtime error after mode-identity checks', fatal());
+
+  /* ==================== 44. item density is per play area, not per screen size */
+  sec('44. pickup density: phone-paced on every screen size, clamped (pillar 4)');
+  near(K.densityMul(K.newGame(CFG.densityRefW, CFG.densityRefH)), 1, 1e-9,
+     'the reference phone viewport is exactly 1x density');
+  eq(K.densityMul(K.newGame(3840, 2160)), CFG.densityMulMax, 'a 4K field clamps at densityMulMax');
+  eq(K.densityMul(K.newGame(240, 320)), CFG.densityMulMin, 'a tiny window clamps at densityMulMin');
+  eq(K.pickupCapNow(K.newGame(CFG.densityRefW, CFG.densityRefH)), CFG.pickupCap,
+     'the phone keeps the base pickup cap (PICK-04)');
+  eq(K.pickupCapNow(K.newGame(3840, 2160)), CFG.pickupCapMax, 'the scaled cap stops at pickupCapMax');
+
+  /* the rolled star interval must shrink by exactly the density multiplier */
+  const starRoll = (w, h) => {
+    const q = K.newGame(w, h); K.startGame(q);
+    const m = K.densityMul(q);
+    let sum = 0, inBounds = true;
+    for (let i = 0; i < 400; i++){
+      q.pickups.length = 0;
+      q.starTimer = 0;
+      K.updateSpawners(q, DT);
+      if (q.starTimer < CFG.starIntervalMin / m - 1e-9 || q.starTimer > CFG.starIntervalMax / m + 1e-9) inBounds = false;
+      sum += q.starTimer;
+    }
+    return { m: m, mean: sum / 400, inBounds: inBounds };
+  };
+  const phoneRoll = starRoll(CFG.densityRefW, CFG.densityRefH);
+  const deskRoll = starRoll(1200, 900);
+  ok(phoneRoll.inBounds, 'phone star intervals stay inside the CFG band');
+  ok(deskRoll.inBounds, 'desktop star intervals are the CFG band divided by the density mul');
+  near(phoneRoll.mean, (CFG.starIntervalMin + CFG.starIntervalMax) / 2, 0.15,
+     'phone mean interval is the CFG midpoint', phoneRoll.mean);
+  near(deskRoll.mean, (CFG.starIntervalMin + CFG.starIntervalMax) / 2 / deskRoll.m, 0.1,
+     'desktop mean interval is the midpoint divided by the mul', deskRoll.mean);
+  g = K.newGame(1200, 900); K.startGame(g);
+  near(g.starTimer, CFG.starFirst / K.densityMul(g), 1e-9, 'the first star also arrives mul-times sooner');
+
+  /* eyeball: a desktop-sized field carrying a phone-density item cloud */
+  f.style.width = '1200px'; f.style.height = '900px';
+  await sleep(150);
+  win.dispatchEvent(new win.Event('resize'));
+  K.startGame(G);
+  for (let i = 0; i < 60 * 25; i++){
+    G.ball.x = -9999; G.ball.y = -9999; G.ball.vy = 0;   // never collects, never dies
+    K.update(G, DT);
+  }
+  K.updateHud(G);
+  K.step(DT);                                            // paint the field for eyeballing
+  ok(G.pickups.length >= 6, 'a 1200x900 field carries a phone-density item cloud', G.pickups.length);
+  ok(!fatal(), 'no runtime error after the density scene', fatal());
 
   /* ------------------------------------------------------------- teardown */
   ok(!fatal(), 'no runtime error surfaced during the whole run', fatal());

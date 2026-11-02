@@ -483,8 +483,13 @@ const CFG = {
   seekerBlinkRate: 20,
 
   /* ---------------- pickups (PICK-01..05) ---------------- */
-  pickupCap: 4,                 // PICK-04
+  pickupCap: 4,                 // PICK-04, at the reference phone density
+  pickupCapMax: 24,             // pillar 4: ceiling for the density-scaled cap
   pickupRetry: 0.6,             // re-roll delay when the cap is full
+  densityRefW: 390,             // reference phone viewport: item density is per-area,
+  densityRefH: 720,             // so every screen size feels like the phone field
+  densityMulMin: 0.6,           // tiny windows keep a playable trickle
+  densityMulMax: 6,             // pillar 4: full phone parity up to ~1080p, bounded beyond
   pickupXPad: 50,
   pickupYMin: 70,
   pickupYMaxFrac: 0.55,
@@ -1133,11 +1138,14 @@ function resetRun(g){
   g.sawTimer = d ? d.grace : CFG.hazardDelay;          // DIFF-02 grace period
   g.spikeTimer = CFG.spikeFirstAfterGate;
   g.seekerTimer = CFG.seekerFirstAfterGate;
-  g.starTimer = CFG.starFirst;
-  g.shieldTimer = CFG.shieldFirst;
-  g.slowmoTimer = CFG.slowmoFirst;
-  g.magnetTimer = CFG.magnetFirst;
-  g.heavyTimer = CFG.heavyFirst;
+  /* pickup pace is per play area, so a desktop window meets the same
+   * item density as a phone instead of the same item count */
+  const mul = densityMul(g);
+  g.starTimer = CFG.starFirst / mul;
+  g.shieldTimer = CFG.shieldFirst / mul;
+  g.slowmoTimer = CFG.slowmoFirst / mul;
+  g.magnetTimer = CFG.magnetFirst / mul;
+  g.heavyTimer = CFG.heavyFirst / mul;
 
   resetBall(g);
 }
@@ -1154,6 +1162,18 @@ function gravityNow(g){
 /* Death slow-motion and the slow-mo bubble both scale simulated time. */
 function timeScaleNow(g){
   return g.timeScale * (g.slowmoT > 0 ? CFG.slowmoTimeScale : 1);
+}
+
+/* Item density is normalised to a reference phone viewport: spawn pace and the
+ * live-pickup cap scale with play area, clamped both ways so a tiny window keeps
+ * a playable trickle and a 4K monitor stops at densityMulMax (pillar 4). */
+function densityMul(g){
+  const ref = CFG.densityRefW * CFG.densityRefH;
+  return Math.min(CFG.densityMulMax, Math.max(CFG.densityMulMin, (g.W * g.H) / ref));
+}
+
+function pickupCapNow(g){
+  return Math.min(CFG.pickupCapMax, Math.round(CFG.pickupCap * densityMul(g)));
 }
 
 function countKind(g, kind){
@@ -2363,7 +2383,7 @@ function rollPickupPos(g){
 }
 
 function spawnPickup(g, type){
-  if (g.pickups.length >= CFG.pickupCap) return null;         // PICK-04
+  if (g.pickups.length >= pickupCapNow(g)) return null;   // PICK-04, scaled by play area
   if (type === 'shield' && g.shield) return null;             // PICK-02
   const pos = rollPickupPos(g);
   const p = {
@@ -2388,6 +2408,7 @@ function spikeInterval(g){
 
 function updateSpawners(g, dt){
   if (g.state !== 'play') return;
+  const mul = densityMul(g);          // per-area item density: phone pace on every screen
 
   /* saws: DIFF-02 grace period is already baked into sawTimer by resetRun */
   g.sawTimer -= dt;
@@ -2415,30 +2436,33 @@ function updateSpawners(g, dt){
   g.starTimer -= dt;
   if (g.starTimer <= 0){
     g.starTimer = spawnPickup(g, 'star')
-      ? rand(CFG.starIntervalMin, CFG.starIntervalMax) / (g.daily ? g.daily.starMul : 1)
+      ? rand(CFG.starIntervalMin, CFG.starIntervalMax) / ((g.daily ? g.daily.starMul : 1) * mul)
       : CFG.pickupRetry;
   }
 
   g.shieldTimer -= dt;
   if (g.shieldTimer <= 0){
     spawnPickup(g, 'shield');                                  // PICK-02: skipped while held
-    g.shieldTimer = rand(CFG.shieldIntervalMin, CFG.shieldIntervalMax);
+    g.shieldTimer = rand(CFG.shieldIntervalMin, CFG.shieldIntervalMax) / mul;
   }
 
   g.slowmoTimer -= dt;
   if (g.slowmoTimer <= 0){
-    g.slowmoTimer = spawnPickup(g, 'slowmo') ? rand(CFG.slowmoIntervalMin, CFG.slowmoIntervalMax) : CFG.pickupRetry;
+    g.slowmoTimer = spawnPickup(g, 'slowmo')
+      ? rand(CFG.slowmoIntervalMin, CFG.slowmoIntervalMax) / mul : CFG.pickupRetry;
   }
 
   g.magnetTimer -= dt;
   if (g.magnetTimer <= 0){
-    g.magnetTimer = spawnPickup(g, 'magnet') ? rand(CFG.magnetIntervalMin, CFG.magnetIntervalMax) : CFG.pickupRetry;
+    g.magnetTimer = spawnPickup(g, 'magnet')
+      ? rand(CFG.magnetIntervalMin, CFG.magnetIntervalMax) / mul : CFG.pickupRetry;
   }
 
   if (g.elapsed >= CFG.heavyGate){
     g.heavyTimer -= dt;
     if (g.heavyTimer <= 0){
-      g.heavyTimer = spawnPickup(g, 'heavy') ? rand(CFG.heavyIntervalMin, CFG.heavyIntervalMax) : CFG.pickupRetry;
+      g.heavyTimer = spawnPickup(g, 'heavy')
+        ? rand(CFG.heavyIntervalMin, CFG.heavyIntervalMax) / mul : CFG.pickupRetry;
     }
   }
 }
@@ -3704,7 +3728,7 @@ function boot(){
         pauseGame: pauseGame, resumeGame: resumeGame, togglePause: togglePause,
         quitToMenu: quitToMenu, toggleMute: toggleMute, updateFlow: updateFlow,
         attemptBounce: attemptBounce, gravityNow: gravityNow, resetRun: resetRun, bgBaseHue: bgBaseHue,
-        timeScaleNow: timeScaleNow,
+        timeScaleNow: timeScaleNow, densityMul: densityMul, pickupCapNow: pickupCapNow,
         spawnSaw: spawnSaw, spawnSpike: spawnSpike, spawnSeeker: spawnSeeker,
         spawnPickup: spawnPickup, updateSpawners: updateSpawners, sawInterval: sawInterval,
         copyShare: copyShare, renderMeta: renderMeta,

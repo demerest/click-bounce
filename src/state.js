@@ -113,11 +113,14 @@ export function resetRun(g){
   g.sawTimer = d ? d.grace : CFG.hazardDelay;          // DIFF-02 grace period
   g.spikeTimer = CFG.spikeFirstAfterGate;
   g.seekerTimer = CFG.seekerFirstAfterGate;
-  g.starTimer = CFG.starFirst;
-  g.shieldTimer = CFG.shieldFirst;
-  g.slowmoTimer = CFG.slowmoFirst;
-  g.magnetTimer = CFG.magnetFirst;
-  g.heavyTimer = CFG.heavyFirst;
+  /* pickup pace is per play area, so a desktop window meets the same
+   * item density as a phone instead of the same item count */
+  const mul = densityMul(g);
+  g.starTimer = CFG.starFirst / mul;
+  g.shieldTimer = CFG.shieldFirst / mul;
+  g.slowmoTimer = CFG.slowmoFirst / mul;
+  g.magnetTimer = CFG.magnetFirst / mul;
+  g.heavyTimer = CFG.heavyFirst / mul;
 
   resetBall(g);
 }
@@ -134,6 +137,18 @@ export function gravityNow(g){
 /* Death slow-motion and the slow-mo bubble both scale simulated time. */
 export function timeScaleNow(g){
   return g.timeScale * (g.slowmoT > 0 ? CFG.slowmoTimeScale : 1);
+}
+
+/* Item density is normalised to a reference phone viewport: spawn pace and the
+ * live-pickup cap scale with play area, clamped both ways so a tiny window keeps
+ * a playable trickle and a 4K monitor stops at densityMulMax (pillar 4). */
+export function densityMul(g){
+  const ref = CFG.densityRefW * CFG.densityRefH;
+  return Math.min(CFG.densityMulMax, Math.max(CFG.densityMulMin, (g.W * g.H) / ref));
+}
+
+export function pickupCapNow(g){
+  return Math.min(CFG.pickupCapMax, Math.round(CFG.pickupCap * densityMul(g)));
 }
 
 export function countKind(g, kind){

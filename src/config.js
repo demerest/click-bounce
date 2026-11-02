@@ -138,8 +138,13 @@ export const CFG = {
   seekerBlinkRate: 20,
 
   /* ---------------- pickups (PICK-01..05) ---------------- */
-  pickupCap: 4,                 // PICK-04
+  pickupCap: 4,                 // PICK-04, at the reference phone density
+  pickupCapMax: 24,             // pillar 4: ceiling for the density-scaled cap
   pickupRetry: 0.6,             // re-roll delay when the cap is full
+  densityRefW: 390,             // reference phone viewport: item density is per-area,
+  densityRefH: 720,             // so every screen size feels like the phone field
+  densityMulMin: 0.6,           // tiny windows keep a playable trickle
+  densityMulMax: 6,             // pillar 4: full phone parity up to ~1080p, bounded beyond
   pickupXPad: 50,
   pickupYMin: 70,
   pickupYMaxFrac: 0.55,

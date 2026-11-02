@@ -8,7 +8,7 @@ import { clamp } from './math.js';
 import { LS } from './storage.js';
 import { DOM, showFatal } from './dom.js';
 import { Snd } from './audio.js';
-import { bgBaseHue, createGame, gravityNow, resetRun, timeScaleNow } from './state.js';
+import { bgBaseHue, createGame, densityMul, gravityNow, pickupCapNow, resetRun, timeScaleNow } from './state.js';
 import { addEdgeWarn, addRing, addScore, addText, burst, shakeBy, updateFx } from './fx.js';
 import { attemptBounce, ballHitFloor, updateBall } from './ball.js';
 import { spawnPickup, spawnSaw, spawnSeeker, spawnSpike, sawInterval, updateSpawners } from './spawn.js';
@@ -207,7 +207,7 @@ export function boot(){
         pauseGame: pauseGame, resumeGame: resumeGame, togglePause: togglePause,
         quitToMenu: quitToMenu, toggleMute: toggleMute, updateFlow: updateFlow,
         attemptBounce: attemptBounce, gravityNow: gravityNow, resetRun: resetRun, bgBaseHue: bgBaseHue,
-        timeScaleNow: timeScaleNow,
+        timeScaleNow: timeScaleNow, densityMul: densityMul, pickupCapNow: pickupCapNow,
         spawnSaw: spawnSaw, spawnSpike: spawnSpike, spawnSeeker: spawnSeeker,
         spawnPickup: spawnPickup, updateSpawners: updateSpawners, sawInterval: sawInterval,
         copyShare: copyShare, renderMeta: renderMeta,
