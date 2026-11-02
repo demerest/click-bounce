@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>cover</title>
+<style>
+  html,body{margin:0; padding:0; background:#0d1017; overflow:hidden;}
+  iframe{display:block; width:630px; height:500px; border:0;}
+</style>
+</head>
+<body>
+<!-- Store-cover capture rig: plays a real run of the shipped build through the
+     ?debug seam, poses a representative moment, and paints it into a 630x500
+     viewport so --screenshot yields the cover pixel-exact. No generated art. -->
+<iframe id="g" src="../index.html?debug"></iframe>
+<script>
+var f = document.getElementById('g');
+f.addEventListener('load', function(){
+  var K = f.contentWindow.__KEEPUP__;
+  var g = K.G;
+  var DT = 1 / 60;
+
+  K.startGame(g);
+
+  /* pose the money shot directly (same recipe as harness scene 32): a readable
+     spread of items, hazards and HUD state, one painted frame */
+  g.elapsed = 25;
+  g.score = 1240; g.bounces = 31; g.best = 2380;
+  g.combo = 5; g.comboTimer = 1.8;
+  g.pickups.length = 0;
+  g.hazards.length = 0;
+  var put = function(type, fx, fy){
+    var p = K.spawnPickup(g, type);
+    if (p){ p.x = g.W * fx; p.y = g.H * fy; p.t = 0; }
+    return p;
+  };
+  put('star', 0.26, 0.24);
+  put('star', 0.70, 0.64);
+  put('slowmo', 0.15, 0.50);
+  put('magnet', 0.84, 0.38);
+  var sawAt = function(fx, fy, dir){
+    var h = K.spawnSaw(g);
+    if (!h) return;
+    h.warn = 0; h.bobAmp = 0; h.entered = true;
+    h.x = g.W * fx; h.y = g.H * fy; h.cy = h.y;
+    h.vx = Math.abs(h.vx) * dir;
+  };
+  sawAt(0.32, 0.30, 1);
+  sawAt(0.80, 0.56, -1);
+  g.edgeWarns.length = 0;      // the posed saws are already on screen: no entry flash
+
+  g.shield = true;
+  g.slowmoT = 3.2; g.magnetT = 0;
+  g.ball.trail.length = 0;
+  g.ball.x = g.W * 0.5; g.ball.y = g.H * 0.42;
+  g.ball.vx = 60; g.ball.vy = -340;
+  K.fx.burst(g, g.ball.x, g.ball.y + 26, '#ffd166', 18, 220);
+  K.fx.addText(g, g.ball.x + 74, g.ball.y - 44, '+40', '#ffd166');
+
+  K.updateHud(g);
+  K.step(DT);
+  document.title = 'cover-ready';
+});
+</script>
+</body>
+</html>
