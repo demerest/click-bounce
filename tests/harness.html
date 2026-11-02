@@ -1278,6 +1278,40 @@ async function main(){
   const cs = n => win.getComputedStyle(doc.getElementById(n)).backgroundColor;
   ok(cs('startBtn') !== cs('climbBtn') && cs('climbBtn') !== cs('dailyBtn') && cs('startBtn') !== cs('dailyBtn'),
      'the three mode buttons are visibly different colours', cs('startBtn') + ' / ' + cs('climbBtn') + ' / ' + cs('dailyBtn'));
+  /* compact menu: button row above the instructions, one-open-at-a-time accordion */
+  const modeRow = menuEl.querySelector('.modeRow');
+  const bodyEl = menuEl.querySelector('.panelBody');
+  ok(!!modeRow && modeRow.contains(doc.getElementById('startBtn'))
+     && modeRow.contains(doc.getElementById('climbBtn'))
+     && modeRow.contains(doc.getElementById('dailyBtn')), 'the mode buttons share one row');
+  ok((modeRow.compareDocumentPosition(bodyEl) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+     'the button row comes before the instructions in document order');
+  ok(doc.getElementById('startBtn').getBoundingClientRect().bottom
+     <= bodyEl.getBoundingClientRect().top + 1, 'the button row renders above the instructions');
+  const secs = menuEl.querySelectorAll('details.msec[name="howto"]');
+  eq(secs.length, 7, 'the instructions are seven collapsible sections');
+  let openN = 0;
+  for (let i = 0; i < secs.length; i++) if (secs[i].open) openN++;
+  eq(openN, 1, 'exactly one section starts open');
+  secs[4].open = true;
+  ok(secs[4].open && !secs[0].open, 'opening a section closes the one that was open');
+  openN = 0;
+  for (let i = 0; i < secs.length; i++) if (secs[i].open) openN++;
+  eq(openN, 1, 'still exactly one open section after switching');
+  secs[4].open = false; secs[0].open = true;
+  const fw = f.style.width, fh = f.style.height;
+  f.style.width = '760px'; f.style.height = '1000px';
+  await sleep(120);
+  win.dispatchEvent(new win.Event('resize'));
+  ok(bodyEl.scrollHeight <= bodyEl.clientHeight + 2,
+     'the instructions fit without scrolling in a 1000px-tall window',
+     bodyEl.scrollHeight + ' vs ' + bodyEl.clientHeight);
+  const panelEl = menuEl.querySelector('.panel');
+  ok(panelEl.scrollHeight <= panelEl.clientHeight + 2, 'the whole menu fits without scrolling',
+     panelEl.scrollHeight + ' vs ' + panelEl.clientHeight);
+  f.style.width = fw; f.style.height = fh;
+  await sleep(120);
+  win.dispatchEvent(new win.Event('resize'));
   ok(doc.getElementById('toast').classList.contains('toast'), 'the badge toast is a CSS-animated element');
   ok(doc.documentElement.style.getPropertyValue('--toast-in').length > 0, 'CFG drives the toast timing');
   if (doc.activeElement && doc.activeElement.blur) doc.activeElement.blur();

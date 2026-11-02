@@ -85,14 +85,24 @@ h1{font-family:var(--display); font-weight:400; font-size:clamp(40px,9vw,62px); 
 h1 em{font-style:normal; color:var(--accent); display:inline-block; transform:skew(-6deg);}
 .tag{color:var(--dim); font-size:14px; margin:0 0 12px;}
 
-/* ---------- menu: scrolling sections + fixed action footer ---------- */
+/* ---------- menu: action row on top, collapsible instructions below ---------- */
 .panel.wide{width:min(94vw,560px);}
 .panelBody{overflow-y:auto; min-height:0; flex:1 1 auto; padding-right:4px; margin-right:-4px;}
-.panelFoot{flex:0 0 auto;}
-.msec{margin:0 0 14px;}
+.modeRow{flex:0 0 auto; display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px;}
+.modeRow .hint{flex-basis:100%; margin-top:9px;}
+/* one-open-at-a-time accordion: <details name> is native, so no JS to break */
+details.msec{margin:0; border-bottom:1px solid var(--line);}
+details.msec:last-child{border-bottom:0;}
+details.msec summary{list-style:none; display:flex; align-items:center; justify-content:space-between;
+  gap:10px; padding:10px 2px; cursor:pointer;}
+details.msec summary::-webkit-details-marker{display:none;}
+details.msec summary::after{content:'+'; font-family:var(--mono); font-size:15px; line-height:1;
+  color:var(--dim);}
+details.msec[open] summary::after{content:'\2212';}
+details.msec summary:hover h2{color:var(--ink);}
+details.msec[open]{padding-bottom:10px;}
 .msec h2{font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.24em;
-  text-transform:uppercase; margin:0 0 6px; color:var(--dim);
-  border-bottom:1px solid var(--line); padding-bottom:4px;}
+  text-transform:uppercase; margin:0; color:var(--dim);}
 .msec h2.hGold{color:var(--accent);} .msec h2.hRed{color:var(--hot);} .msec h2.hViolet{color:var(--violet);}
 ul.rules{list-style:none; margin:0; padding:0; font-size:12.5px; line-height:1.45; color:#c6ccda;}
 ul.rules li{margin:0 0 6px; padding-left:14px; position:relative;}
@@ -105,9 +115,6 @@ ul.legend .icon{width:44px; height:44px; flex:0 0 44px; background:#0f1420;
 ul.legend li > div{font-size:12.5px; line-height:1.4; color:#c6ccda;}
 ul.legend b{color:var(--ink);}
 .mini{font-family:var(--mono); font-size:10px; color:#565e70; margin:2px 0 10px; text-align:center;}
-.panelFoot{border-top:2px solid var(--line); margin-top:4px; padding-top:12px;
-  display:flex; gap:8px; flex-wrap:wrap;}
-.panelFoot .hint{flex-basis:100%; margin-top:9px;}
 .modeBtn{flex:1 1 120px; font-family:var(--display); font-size:17px; letter-spacing:.06em;
   border:0; padding:11px 6px; cursor:pointer; color:#181206;
   transition:transform .08s, box-shadow .08s;}
@@ -186,11 +193,12 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
   #comboBox{transition:none;}
 }
 
-/* ---------- short screens: keep the action footer reachable ---------- */
+/* ---------- short screens: keep the accordion compact ---------- */
 @media (max-height: 720px){
   .panel{padding:18px 22px 18px;}
-  .panelBody{max-height:46vh;}
-  .msec{margin-bottom:10px;}
+  .panelBody{max-height:52vh;}
+  details.msec summary{padding:8px 2px;}
+  details.msec[open]{padding-bottom:8px;}
 }
 @media (max-height: 600px){
   h1{font-size:clamp(32px,8vw,44px);}
@@ -225,51 +233,57 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
     <p class="eyebrow">ONE-CLICK ARCADE</p>
     <h1 id="menuTitle">KEEP <em>IT&nbsp;UP</em></h1>
     <p class="tag">The jelly ball knows only one word: <b>boing</b>. Pick a mode.</p>
+    <div class="modeRow">
+      <button id="startBtn" class="modeBtn gold" type="button">START CLASSIC<span class="kbd">space / enter</span></button>
+      <button id="climbBtn" class="modeBtn red" type="button">CLIMB<span class="kbd">C</span></button>
+      <button id="dailyBtn" class="modeBtn violet" type="button">DAILY<span class="kbd">D</span></button>
+      <p class="hint">the ball forgives misses &mdash; never the floor</p>
+    </div>
     <div class="panelBody">
-      <section class="msec">
-        <h2>The one rule</h2>
+      <details class="msec" name="howto" open>
+        <summary><h2>The one rule</h2></summary>
         <ul class="rules">
           <li><b>Click / tap near the ball</b> &mdash; it is pushed <b>away</b> from your finger, so where you click steers it.</li>
           <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing, and chain bounces inside 2.2s for <b>combo</b> (scoring caps at &times;10).</li>
           <li>A miss only breaks your combo. <b>P</b> / <b>Esc</b> pauses, <b>M</b> mutes.</li>
         </ul>
-      </section>
-      <section class="msec">
-        <h2 class="hGold">Classic mode</h2>
+      </details>
+      <details class="msec" name="howto">
+        <summary><h2 class="hGold">Classic mode</h2></summary>
         <ul class="rules">
           <li>Score = bounce points &times; combo + pickups. Your best is saved.</li>
           <li>The <b>floor</b> kills. Hazards start after 9s and never spawn on top of you.</li>
           <li>Skim a hazard without touching it for a <b>+15 near-miss</b>.</li>
         </ul>
-      </section>
-      <section class="msec">
-        <h2 class="hRed">Climb mode &mdash; the hard one</h2>
+      </details>
+      <details class="msec" name="howto">
+        <summary><h2 class="hRed">Climb mode &mdash; the hard one</h2></summary>
         <ul class="rules">
           <li>Score = <b>metres climbed</b>. The camera only ever moves up.</li>
           <li>Every 300px a wall of saws blocks the sky with <b>one dashed corridor</b> &mdash; that is your way through.</li>
           <li><b>Lava</b> rises from below after a 3s grace. It is your floor now.</li>
           <li>Corridor stars pay +5m; every third wall hides a shield.</li>
         </ul>
-      </section>
-      <section class="msec">
-        <h2 class="hViolet">Daily run</h2>
+      </details>
+      <details class="msec" name="howto">
+        <summary><h2 class="hViolet">Daily run</h2></summary>
         <p id="dailyStrip" class="daily"></p>
         <ul class="rules">
           <li>Classic rules, but today's date remixes gravity, saw pace, saw speed and star rate.</li>
           <li>Everyone gets the same mix; only your best for the day is remembered.</li>
         </ul>
-      </section>
-      <section class="msec">
-        <h2>Hazards &mdash; what kills you</h2>
+      </details>
+      <details class="msec" name="howto">
+        <summary><h2>Hazards &mdash; what kills you</h2></summary>
         <ul class="legend">
           <li><canvas class="icon" data-icon="saw" aria-hidden="true"></canvas><div><b>Saw</b> &mdash; crosses the screen; a red edge flash warns you before it arrives.</div></li>
           <li><canvas class="icon" data-icon="spike" aria-hidden="true"></canvas><div><b>Spike</b> &mdash; a ceiling marker telegraphs for 1s, then it drops where you <i>were</i>. Keep moving.</div></li>
           <li><canvas class="icon" data-icon="seeker" aria-hidden="true"></canvas><div><b>Drone</b> &mdash; after 60s. Slow homing, capped turn rate, dies on walls. Out-fly it.</div></li>
           <li><canvas class="icon" data-icon="lava" aria-hidden="true"></canvas><div><b>Lava</b> (climb) &mdash; rises forever after its grace. Touching it ends the run.</div></li>
         </ul>
-      </section>
-      <section class="msec">
-        <h2>Pickups &mdash; what helps you</h2>
+      </details>
+      <details class="msec" name="howto">
+        <summary><h2>Pickups &mdash; what helps you</h2></summary>
         <ul class="legend">
           <li><canvas class="icon" data-icon="star" aria-hidden="true"></canvas><div><b>Star</b> &mdash; +40 points (+5m in climb). Blinks just before it despawns.</div></li>
           <li><canvas class="icon" data-icon="shield" aria-hidden="true"></canvas><div><b>Shield</b> &mdash; eats exactly one hazard hit, then pops.</div></li>
@@ -277,20 +291,14 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
           <li><canvas class="icon" data-icon="magnet" aria-hidden="true"></canvas><div><b>Magnet</b> &mdash; stars within 150px fly to you for 6s.</div></li>
           <li><canvas class="icon" data-icon="heavy" aria-hidden="true"></canvas><div><b>Heavy star</b> &mdash; +200 points, but gravity +15% for 8s. Greed is a choice.</div></li>
         </ul>
-      </section>
-      <section class="msec">
-        <h2>Progress</h2>
+      </details>
+      <details class="msec" name="howto">
+        <summary><h2>Progress</h2></summary>
         <div id="badges" class="badges" role="group" aria-label="Achievements"></div>
         <p class="mini">Badges: &times;10 combo &middot; 3 stars in one run &middot; survive 120s &middot; a shield save.</p>
         <div id="skins" class="swatches" role="group" aria-label="Ball skins"></div>
         <p class="mini">Skins unlock at best 0 / 600 / 1800 / 4000. Click one to wear it.</p>
-      </section>
-    </div>
-    <div class="panelFoot">
-      <button id="startBtn" class="modeBtn gold" type="button">START CLASSIC<span class="kbd">space / enter</span></button>
-      <button id="climbBtn" class="modeBtn red" type="button">CLIMB<span class="kbd">C</span></button>
-      <button id="dailyBtn" class="modeBtn violet" type="button">DAILY<span class="kbd">D</span></button>
-      <p class="hint">the ball forgives misses &mdash; never the floor</p>
+      </details>
     </div>
   </div>
 </div>
