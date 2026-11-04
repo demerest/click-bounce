@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pre-API-26 launcher fallback: dark plate + the ball, vector only. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#0d1017"
+        android:pathData="M0,0 H108 V108 H0 Z" />
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="1.25"
+        android:scaleY="1.25">
+        <path
+            android:fillColor="#ff5d73"
+            android:pathData="M54,26 A26,26 0 0,1 54,78 A26,26 0 0,1 54,26 Z" />
+        <path
+            android:fillColor="#ffffff"
+            android:fillAlpha="0.35"
+            android:pathData="M45.5,35.5 A4.5,4.5 0 0,1 45.5,44.5 A4.5,4.5 0 0,1 45.5,35.5 Z" />
+        <path
+            android:fillColor="#3a0d18"
+            android:pathData="M46.5,45.4 A2.6,2.6 0 0,1 46.5,50.6 A2.6,2.6 0 0,1 46.5,45.4 Z" />
+        <path
+            android:fillColor="#3a0d18"
+            android:pathData="M61.5,45.4 A2.6,2.6 0 0,1 61.5,50.6 A2.6,2.6 0 0,1 61.5,45.4 Z" />
+        <path
+            android:strokeColor="#3a0d18"
+            android:strokeWidth="3"
+            android:strokeLineCap="round"
+            android:fillColor="#00000000"
+            android:pathData="M45,58 Q54,66 63,58" />
+    </group>
+</vector>
