@@ -190,3 +190,7 @@ the target module layout) are missing. The layout above is inferred from
 
 Tuning lives entirely in `CFG` (`src/config.js`); the ROADMAP §5 table still
 applies, with the new knobs documented inline.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 demerest.
