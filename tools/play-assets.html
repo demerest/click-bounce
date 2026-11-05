@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>play-assets</title>
+<style>
+  html,body{margin:0; padding:0; background:#0d1017; overflow:hidden;}
+  iframe{display:block; width:100vw; height:100vh; border:0;}
+</style>
+</head>
+<body>
+<!-- Play store asset rig: poses real runs of the shipped build through the
+     ?debug seam at whatever viewport Chrome was launched with, so every store
+     image (icon, feature graphic, phone shots) is the game rendering itself.
+     ?scene=menu|classic|climb|over|icon -->
+<iframe id="g" src="../index.html?debug"></iframe>
+<script>
+var scene = (location.search.match(/scene=([a-z]+)/) || [,'menu'])[1];
+var f = document.getElementById('g');
+document.title = 'parsed';
+f.addEventListener('load', function(){
+  document.title = 'loaded';
+  /* size once the headless window is final (parse-time innerHeight is a
+     pre-layout default), then let the game re-read its viewport - the same
+     size-then-dispatch-resize pattern the harness uses. ?vp=WxH pins a fixed
+     CSS viewport (phone shots) instead of filling the window. */
+  var vp = location.search.match(/vp=(\d+)x(\d+)/);
+  if (vp){
+    f.style.width = vp[1] + 'px';
+    f.style.height = vp[2] + 'px';
+  } else {
+    f.style.width = window.innerWidth + 'px';
+    f.style.height = window.innerHeight + 'px';
+  }
+  setTimeout(function(){
+  try {
+  var K = f.contentWindow.__KEEPUP__;
+  if (!K) throw new Error('no debug seam on the iframe');
+  var g = K.G;
+  var doc = f.contentDocument;
+  var DT = 1 / 60;
+  var pending = false;
+  function done(){
+    document.title = 'asset-ready ' + g.W + 'x' + g.H;
+  }
+  f.contentWindow.dispatchEvent(new f.contentWindow.Event('resize'));
+  var put = function(type, fx, fy){
+    var p = K.spawnPickup(g, type);
+    if (p){ p.x = g.W * fx; p.y = g.H * fy; p.t = 0; }
+    return p;
+  };
+  var sawAt = function(fx, fy, dir){
+    var h = K.spawnSaw(g);
+    if (!h) return;
+    h.warn = 0; h.bobAmp = 0; h.entered = true;
+    h.x = g.W * fx; h.y = g.H * fy; h.cy = h.y;
+    h.vx = Math.abs(h.vx) * dir;
+  };
+
+  function poseClassic(){
+    K.startGame(g);
+    g.elapsed = 25;
+    g.score = 1240; g.bounces = 31; g.best = 2380;
+    g.combo = 5; g.comboTimer = 1.8;
+    g.pickups.length = 0;
+    g.hazards.length = 0;
+    put('star', 0.26, 0.20);
+    put('star', 0.70, 0.58);
+    put('slowmo', 0.15, 0.44);
+    put('magnet', 0.84, 0.34);
+    put('shield', 0.52, 0.74);
+    put('heavy', 0.30, 0.82);
+    sawAt(0.32, 0.26, 1);
+    sawAt(0.80, 0.50, -1);
+    var sp = K.spawnSpike(g);
+    if (sp){ sp.warn = 0.6; sp.x = g.W * 0.62; }
+    g.edgeWarns.length = 0;
+    g.shield = true;
+    g.slowmoT = 3.2; g.magnetT = 0;
+    g.ball.trail.length = 0;
+    g.ball.x = g.W * 0.5; g.ball.y = g.H * 0.38;
+    g.ball.vx = 60; g.ball.vy = -340;
+    K.fx.burst(g, g.ball.x, g.ball.y + 26, '#ffd166', 18, 220);
+    K.fx.addText(g, g.ball.x + 74, g.ball.y - 44, '+40', '#ffd166');
+    K.updateHud(g);
+    K.step(DT);
+  }
+
+  if (scene === 'menu'){
+    /* boot state is the menu with its attract-mode ball: nothing to pose */
+    K.step(DT);
+  } else if (scene === 'classic' || scene === 'feature'){
+    poseClassic();
+  } else if (scene === 'climb'){
+    K.startClimb(g);
+    g.ball.x = g.climb.bands[0].gapX;
+    g.ball.y = g.climb.baseY - 160; g.ball.vy = -320;
+    g.shield = true;
+    g.climb.meters = 42; g.score = 42;
+    K.updateHud(g);
+    K.step(DT);
+    g.climb.lavaY = g.climb.camY + g.H - 30;
+    K.step(DT);
+  } else if (scene === 'over'){
+    K.startGame(g);
+    g.score = 861; g.bounces = 27; g.maxCombo = 6; g.elapsed = 47.3;
+    K.die(g);
+    /* dying runs in slow motion, so step until 'over'; the panel itself is
+       gated on wall-clock time, which only advances between tasks - yield to
+       a timeout so virtual time passes the overPanelDelay, then paint. */
+    for (var i = 0; i < 600 && g.state !== 'over'; i++) K.step(DT);
+    pending = true;
+    setTimeout(function(){
+      for (var j = 0; j < 30; j++) K.step(DT);
+      done();
+    }, 3000);
+  } else if (scene === 'icon'){
+    K.startGame(g);
+    doc.getElementById('hud').style.display = 'none';
+    doc.getElementById('sysBtns').style.display = 'none';
+    g.ball.trail.length = 0;
+    g.ball.x = g.W / 2; g.ball.y = g.H / 2;
+    g.ball.vx = 0; g.ball.vy = 0;
+    g.ball.r = Math.min(g.W, g.H) * 0.35;
+    g.ball.dispAng = 0; g.ball.blink = 0;
+    K.step(DT);
+  }
+  if (!pending) done();
+  } catch (e) {
+    document.body.innerHTML = '<pre style="color:#ff5d73;font:14px monospace;padding:12px">'
+      + String(e && e.stack || e).replace(/[<>&]/g, function(c){
+          return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; }) + '</pre>';
+  }
+  }, 150);
+});
+</script>
+</body>
+</html>

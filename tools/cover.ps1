@@ -54,10 +54,15 @@ try {
 
 try {
   $prof = "$tmp\keepup-cover-prof-" + [DateTime]::Now.ToString('yyyyMMddHHmmssfff')
+  $raw = "$tmp\keepup-cover-raw.png"
+  Remove-Item $raw -Force -ErrorAction SilentlyContinue
+  # This Chrome's headless window carries a 16x151 frame inset: the layout
+  # viewport is window-size minus that and the screenshot includes the frame
+  # band, so capture padded and crop the exact 630x500 viewport out.
   $cmdLine = "`"$chrome`" --headless=new --disable-gpu --no-first-run --no-sandbox --mute-audio " +
-             "--hide-scrollbars --window-size=630,500 " +
+             "--hide-scrollbars --window-size=646,651 " +
              "--user-data-dir=`"$prof`" " +
-             "--virtual-time-budget=20000 --screenshot=`"$png`" " +
+             "--virtual-time-budget=20000 --screenshot=`"$raw`" " +
              "http://127.0.0.1:$Port/tools/cover.html"
   cmd /c "$cmdLine > `"$tmp\keepup-cover.log`" 2>&1"
 } finally {
@@ -65,13 +70,19 @@ try {
   Write-Host 'server stopped'
 }
 
-if (-not (Test-Path -LiteralPath $png)) {
+if (-not (Test-Path -LiteralPath $raw)) {
   Get-Content "$tmp\keepup-cover.log" -ErrorAction SilentlyContinue | Select-Object -First 6 | ForEach-Object { Write-Host "      $_" }
   throw 'cover screenshot was not produced'
 }
 Add-Type -AssemblyName System.Drawing
-$bmp = New-Object System.Drawing.Bitmap($png)
-$w = $bmp.Width; $h = $bmp.Height
-$bmp.Dispose()
+$bmp = New-Object System.Drawing.Bitmap($raw)
+try {
+  $rect = New-Object System.Drawing.Rectangle(0, 0, 630, 500)
+  $crop = $bmp.Clone($rect, $bmp.PixelFormat)
+  try { $crop.Save($png, [System.Drawing.Imaging.ImageFormat]::Png) } finally { $crop.Dispose() }
+} finally { $bmp.Dispose() }
+$chk = New-Object System.Drawing.Bitmap($png)
+$w = $chk.Width; $h = $chk.Height
+$chk.Dispose()
 if ($w -ne 630 -or $h -ne 500) { throw "cover is ${w}x${h}, expected 630x500" }
 Write-Host ("ok   cover: {0} ({1} bytes, {2}x{3})" -f $png, (Get-Item $png).Length, $w, $h) -ForegroundColor Green
