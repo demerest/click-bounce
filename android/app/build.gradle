@@ -18,7 +18,8 @@ android {
         applicationId "com.demerest.keepitup"
         minSdk 24
         targetSdk 36
-        versionCode 1
+        // Play permanently consumes each versionCode per upload; bump for every AAB re-upload.
+        versionCode 2
         versionName "1.0"
     }
 
