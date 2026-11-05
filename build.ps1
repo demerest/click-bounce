@@ -137,8 +137,13 @@ $devHtml = $shellText.Replace('<!--@css-->', '<link rel="stylesheet" href="src/s
 $devHtml = $devHtml.Replace('<!--@js-->', '<script type="module" src="src/game.js"></script>')
 
 # PORT-01 / DATA-01: the shipped file must not reference anything outside itself.
+# One whitelisted exception: the privacy-policy link Play's user-data policy
+# requires in-app. It is a user-initiated navigation to this project's own Pages
+# host - the game itself never fetches it. Any other external reference, including
+# a second href or any '://' inside JS, still fails the build.
+$scanHtml = $indexHtml.Replace(' href="https://demerest.github.io/click-bounce/privacy.html"', '')
 foreach ($pat in @('://', ' src=', ' href=', 'url(', '@import')) {
-  if ($indexHtml.IndexOf($pat) -ge 0) {
+  if ($scanHtml.IndexOf($pat) -ge 0) {
     $fail += "index.html contains an external reference ('$pat') - violates PORT-01"
   }
 }

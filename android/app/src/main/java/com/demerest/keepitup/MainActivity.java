@@ -29,6 +29,19 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);                    // bests, badges, skins, mute
         s.setMediaPlaybackRequiresUserGesture(false);    // WebAudio unlocks on first tap
 
+        /* The in-app privacy-policy link (Play user-data policy): hand http(s)
+           URLs to the system browser - the app itself stays network-free. */
+        web.setWebViewClient(new android.webkit.WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view,
+                                                    android.webkit.WebResourceRequest req) {
+                android.net.Uri u = req.getUrl();
+                if (u == null || "file".equals(u.getScheme())) return false;
+                startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, u));
+                return true;
+            }
+        });
+
         setContentView(web);
         hideSystemUi();
 

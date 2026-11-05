@@ -854,9 +854,15 @@ async function main(){
   eq(typeof win.__KEEPUP__, 'object', 'the debug build exposes exactly one namespaced hook');
 
   const html = doc.documentElement.outerHTML;
-  ok(!/\ssrc\s*=/.test(html), 'no external script or image references (PORT-01)');
-  ok(!/\shref\s*=/.test(html), 'no external stylesheet or link references (PORT-01)');
-  ok(!/https?:\/\//.test(html), 'no absolute URLs anywhere (PORT-01)');
+  /* Play's user-data policy mandates an in-app privacy-policy link; that single
+     user-initiated navigation to our own Pages host is the one allowed external
+     reference - every other href/src/absolute URL still fails the build. */
+  const pure = html.split(' href="https://demerest.github.io/click-bounce/privacy.html"').join('');
+  ok(!/\ssrc\s*=/.test(pure), 'no external script or image references (PORT-01)');
+  ok(!/\shref\s*=/.test(pure), 'no external stylesheet or link references (PORT-01)');
+  ok(!/https?:\/\//.test(pure), 'no absolute URLs anywhere (PORT-01)');
+  ok(/ href="https:\/\/demerest\.github\.io\/click-bounce\/privacy\.html"/.test(html),
+     'the one allowed external reference is the privacy policy link');
   ok(!/<img|background-image|\.png|\.jpe?g|\.gif|\.webp|\.svg|\.mp3|\.wav|\.ogg|\.woff/i.test(html),
      'no bitmap, font or audio assets (UI-05, AUD-01)');
   ok(/<style>/.test(html), 'styles are inlined');
@@ -1273,6 +1279,9 @@ async function main(){
   eq(doc.getElementById('skins').children.length, K.SKINS.length, 'one swatch per skin');
   ok(/DAILY \d{4}-\d{2}-\d{2}/.test(doc.getElementById('dailyStrip').textContent), 'the daily strip names today');
   ok(!!doc.getElementById('climbBtn') && !!doc.getElementById('dailyBtn'), 'mode buttons exist');
+  const pl = doc.getElementById('privacyLink');
+  ok(!!pl && pl.getAttribute('href') === 'https://demerest.github.io/click-bounce/privacy.html',
+     'the menu links the hosted privacy policy (Play user-data policy)');
   /* reworked menu: one section per mode, icon legends, coloured mode buttons */
   const menuEl = doc.getElementById('menu');
   const heads = Array.prototype.map.call(menuEl.querySelectorAll('.msec h2'), h => h.textContent.toLowerCase());
