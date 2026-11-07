@@ -10,8 +10,8 @@ rewrite, no third-party libraries, no `INTERNET` permission: `assets/index.html`
   across flips and the game's own resize handling does the rest
 - Immersive sticky fullscreen, screen kept on, dark window background
 - Bests/badges/skins persist in WebView DOM storage (`setDomStorageEnabled`)
-- Launcher icon is vector-only (adaptive icon + pre-26 fallback), same palette
-  as the game's default skin
+- Launcher icon is the Play store capture (`play/icon-512.png`) rasterized to
+  mipmap PNGs by `tools/launcher-icons.ps1`, so phone and store show one art
 
 ## Build
 
@@ -42,7 +42,8 @@ distribution key and a lost upload key can be reset.
 
 - Upload the AAB (not an APK); Play generates the device splits.
 - Data safety form: no data collected, no network access, local-only storage.
-- Store graphics (512 icon, 1024x500 feature graphic) can be captured from the
-  real build with the same rig as `tools/cover.ps1` when the listing is filled in.
+- Store graphics live in `play/` (icon-512, feature-1024x500, four phone
+  shots), captured from the real build by `tools/play-assets.ps1`; the listing
+  copy is in `play/store-listing.md`.
 - Content rating: none needed beyond the usual questionnaire (no violence
   beyond cartoon saws, no loot boxes, no purchases).
