@@ -26,7 +26,7 @@ export function bindInput(g){
       /* Climb mode scrolls the world: pointer coords are screen space, the sim
        * lives in world space (bugfix: clicks used to land camY pixels off). */
       const camY = g.mode === 'climb' && g.climb ? g.climb.camY : 0;
-      attemptBounce(g, e.clientX, e.clientY + camY, false);
+      attemptBounce(g, e.clientX, e.clientY + camY, false, e.pointerType === 'touch');
     }
     else if (g.state === 'over') tryRestart(g);
   });

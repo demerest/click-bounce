@@ -25,7 +25,8 @@ export const CFG = {
   bounceMinUpward: 0.55,        // CORE-03: guaranteed upward component (x power)
   bounceMinNy: -0.35,           // push direction is tilted up to at least this
   bounceLateralMul: 0.95,
-  hitRadiusMul: 2.3,            // CORE-02
+  hitRadiusMul: 2.6,            // CORE-02 (playtest: whiffed taps felt unfair)
+  hitRadiusMulTouch: 3.0,       // CORE-02: a finger is blunter than a cursor
   bounceCooldown: 0.1,          // CORE-08 anti-spam (also covers multi-touch)
   wallRest: 0.75,               // CORE-06
   wallWobble: 0.2,

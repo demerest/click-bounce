@@ -60,3 +60,19 @@ export function showFatal(msg){
 export function announce(msg){
   if (DOM.srStatus) DOM.srStatus.textContent = msg;
 }
+
+/* Touch-only devices have no keyboard to advertise, so the PC key hints are
+ * hidden there (playtest: the Android app and phone browsers). */
+export function touchOnlyInput(fine, coarse, touchPoints){
+  return !fine && (coarse || touchPoints > 0);
+}
+
+export function detectTouchOnly(){
+  try {
+    const mm = window.matchMedia;
+    return touchOnlyInput(
+      !!(mm && mm('(pointer: fine)').matches),
+      !!(mm && mm('(pointer: coarse)').matches),
+      navigator.maxTouchPoints || 0);
+  } catch (e){ return false; }
+}

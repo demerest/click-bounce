@@ -8,14 +8,15 @@ import { clamp, decay, lerpAngle } from './math.js';
 import { Snd } from './audio.js';
 
 /* One pointer press. `auto` = attract-mode autopilot (no score, no combo, no miss). */
-export function attemptBounce(g, cx, cy, auto){
+export function attemptBounce(g, cx, cy, auto, touch){
   const b = g.ball;
   if (b.dead) return false;
 
   const dx = b.x - cx, dy = b.y - cy;
   const d = Math.hypot(dx, dy) || 1;
+  const hitR = b.r * (touch ? CFG.hitRadiusMulTouch : CFG.hitRadiusMul);
 
-  if (d > b.r * CFG.hitRadiusMul){
+  if (d > hitR){
     /* CORE-07: a miss breaks the combo and does nothing else. */
     if (!auto && g.state === 'play'){
       addRing(g, cx, cy, CFG.missRingR, CFG.missRingVr, CFG.missRingLife, 'rgba(255,255,255,0.5)');
@@ -46,7 +47,7 @@ export function attemptBounce(g, cx, cy, auto){
   b.vy = -power * Math.max(CFG.bounceMinUpward, -ny);
 
   /* CORE-09: off-centre contact imparts spin; a dead-centre hit barely does */
-  const off = clamp(d / (b.r * CFG.hitRadiusMul), 0, 1);
+  const off = clamp(d / hitR, 0, 1);
   b.spin = -nx * CFG.spinFromPush * (1 - CFG.spinFromOffsetGain + CFG.spinFromOffsetGain * off);
 
   /* PHYS-03: jelly squash impulse */

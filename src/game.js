@@ -6,7 +6,7 @@
 import { CFG, KEYS } from './config.js';
 import { clamp } from './math.js';
 import { LS } from './storage.js';
-import { DOM, showFatal } from './dom.js';
+import { DOM, detectTouchOnly, showFatal, touchOnlyInput } from './dom.js';
 import { Snd } from './audio.js';
 import { bgBaseHue, createGame, densityMul, gravityNow, pickupCapNow, resetRun, timeScaleNow } from './state.js';
 import { addEdgeWarn, addRing, addScore, addText, burst, shakeBy, updateFx } from './fx.js';
@@ -170,6 +170,7 @@ export function boot(){
   try {
     LS.probe();
     G.reducedMotion = detectReducedMotion();
+    if (detectTouchOnly()) document.body.classList.add('touchOnly');
     applyCssKnobs();
     R = createRenderer(DOM.canvas);
     R.resize(G);
@@ -213,7 +214,7 @@ export function boot(){
         copyShare: copyShare, renderMeta: renderMeta,
         updateHazards: updateHazards, updatePickups: updatePickups,
         collectPickup: collectPickup, updateBall: updateBall, updateHud: updateHud,
-        showFatal: showFatal,
+        showFatal: showFatal, touchOnlyInput: touchOnlyInput,
       };
       R.draw(G);
     } else {

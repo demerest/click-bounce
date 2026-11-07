@@ -138,6 +138,7 @@ button.ghost{display:block; width:100%; margin-top:10px; font-family:var(--mono)
   padding:11px 0; cursor:pointer;}
 button.ghost:hover{color:var(--ink); border-color:var(--dim);}
 .hint{font-family:var(--mono); font-size:11px; color:#565e70; text-align:center; margin:14px 0 0;}
+body.touchOnly .kbd, body.touchOnly .pcOnly{display:none;}
 #finalScore{font-family:var(--mono); font-size:56px; font-weight:900; color:var(--accent);
   line-height:1; margin:6px 0 14px; text-shadow:0 3px 0 rgba(0,0,0,.5);}
 .stats{display:flex; gap:8px; margin-bottom:16px;}
@@ -248,7 +249,7 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
         <ul class="rules">
           <li><b>Click / tap near the ball</b> &mdash; it is pushed <b>away</b> from your finger, so where you click steers it.</li>
           <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing, and chain bounces inside 2.2s for <b>combo</b> (scoring caps at &times;10).</li>
-          <li>A miss only breaks your combo. <b>P</b> / <b>Esc</b> pauses, <b>M</b> mutes.</li>
+          <li>A miss only breaks your combo.<span class="pcOnly"> <b>P</b> / <b>Esc</b> pauses, <b>M</b> mutes.</span></li>
         </ul>
       </details>
       <details class="msec" name="howto">
@@ -315,7 +316,7 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
     <p class="tag" id="pauseReason">The jelly ball is holding its breath.</p>
     <button id="resumeBtn" class="big" type="button">RESUME</button>
     <button id="pauseQuitBtn" class="ghost" type="button">QUIT TO MENU</button>
-    <p class="hint">P / Esc to resume</p>
+    <p class="hint pcOnly">P / Esc to resume</p>
   </div>
 </div>
 
@@ -335,7 +336,7 @@ button.ghost:hover{color:var(--ink); border-color:var(--dim);}
       <button id="shareBtn" class="ghost" type="button">COPY SCORE</button>
       <button id="menuBtn" class="ghost" type="button">MAIN MENU</button>
     </div>
-    <p class="hint">space / enter to retry</p>
+    <p class="hint pcOnly">space / enter to retry</p>
   </div>
 </div>
 
@@ -375,7 +376,8 @@ const CFG = {
   bounceMinUpward: 0.55,        // CORE-03: guaranteed upward component (x power)
   bounceMinNy: -0.35,           // push direction is tilted up to at least this
   bounceLateralMul: 0.95,
-  hitRadiusMul: 2.3,            // CORE-02
+  hitRadiusMul: 2.6,            // CORE-02 (playtest: whiffed taps felt unfair)
+  hitRadiusMulTouch: 3.0,       // CORE-02: a finger is blunter than a cursor
   bounceCooldown: 0.1,          // CORE-08 anti-spam (also covers multi-touch)
   wallRest: 0.75,               // CORE-06
   wallWobble: 0.2,
@@ -886,6 +888,22 @@ function announce(msg){
   if (DOM.srStatus) DOM.srStatus.textContent = msg;
 }
 
+/* Touch-only devices have no keyboard to advertise, so the PC key hints are
+ * hidden there (playtest: the Android app and phone browsers). */
+function touchOnlyInput(fine, coarse, touchPoints){
+  return !fine && (coarse || touchPoints > 0);
+}
+
+function detectTouchOnly(){
+  try {
+    const mm = window.matchMedia;
+    return touchOnlyInput(
+      !!(mm && mm('(pointer: fine)').matches),
+      !!(mm && mm('(pointer: coarse)').matches),
+      navigator.maxTouchPoints || 0);
+  } catch (e){ return false; }
+}
+
 
 /* ===================== audio.js ===================== */
 
@@ -1313,14 +1331,15 @@ function updateFx(g, dt){
 
 
 /* One pointer press. `auto` = attract-mode autopilot (no score, no combo, no miss). */
-function attemptBounce(g, cx, cy, auto){
+function attemptBounce(g, cx, cy, auto, touch){
   const b = g.ball;
   if (b.dead) return false;
 
   const dx = b.x - cx, dy = b.y - cy;
   const d = Math.hypot(dx, dy) || 1;
+  const hitR = b.r * (touch ? CFG.hitRadiusMulTouch : CFG.hitRadiusMul);
 
-  if (d > b.r * CFG.hitRadiusMul){
+  if (d > hitR){
     /* CORE-07: a miss breaks the combo and does nothing else. */
     if (!auto && g.state === 'play'){
       addRing(g, cx, cy, CFG.missRingR, CFG.missRingVr, CFG.missRingLife, 'rgba(255,255,255,0.5)');
@@ -1351,7 +1370,7 @@ function attemptBounce(g, cx, cy, auto){
   b.vy = -power * Math.max(CFG.bounceMinUpward, -ny);
 
   /* CORE-09: off-centre contact imparts spin; a dead-centre hit barely does */
-  const off = clamp(d / (b.r * CFG.hitRadiusMul), 0, 1);
+  const off = clamp(d / hitR, 0, 1);
   b.spin = -nx * CFG.spinFromPush * (1 - CFG.spinFromOffsetGain + CFG.spinFromOffsetGain * off);
 
   /* PHYS-03: jelly squash impulse */
@@ -3476,7 +3495,7 @@ function bindInput(g){
       /* Climb mode scrolls the world: pointer coords are screen space, the sim
        * lives in world space (bugfix: clicks used to land camY pixels off). */
       const camY = g.mode === 'climb' && g.climb ? g.climb.camY : 0;
-      attemptBounce(g, e.clientX, e.clientY + camY, false);
+      attemptBounce(g, e.clientX, e.clientY + camY, false, e.pointerType === 'touch');
     }
     else if (g.state === 'over') tryRestart(g);
   });
@@ -3699,6 +3718,7 @@ function boot(){
   try {
     LS.probe();
     G.reducedMotion = detectReducedMotion();
+    if (detectTouchOnly()) document.body.classList.add('touchOnly');
     applyCssKnobs();
     R = createRenderer(DOM.canvas);
     R.resize(G);
@@ -3742,7 +3762,7 @@ function boot(){
         copyShare: copyShare, renderMeta: renderMeta,
         updateHazards: updateHazards, updatePickups: updatePickups,
         collectPickup: collectPickup, updateBall: updateBall, updateHud: updateHud,
-        showFatal: showFatal,
+        showFatal: showFatal, touchOnlyInput: touchOnlyInput,
       };
       R.draw(G);
     } else {

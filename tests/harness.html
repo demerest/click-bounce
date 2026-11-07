@@ -136,7 +136,8 @@ async function main(){
   eq(CFG.bouncePower, 880, 'bouncePower 880');
   eq(CFG.bounceChargeTime, 0.45, 'bounceChargeTime 0.45 (CORE-05)');
   eq(CFG.bounceMinFactor, 0.55, 'bounceMinFactor 0.55 (CORE-05)');
-  eq(CFG.hitRadiusMul, 2.3, 'hitRadiusMul 2.3 (CORE-02)');
+  eq(CFG.hitRadiusMul, 2.6, 'hitRadiusMul 2.6 (CORE-02)');
+  eq(CFG.hitRadiusMulTouch, 3.0, 'hitRadiusMulTouch 3.0 (CORE-02)');
   eq(CFG.comboWindow, 2.2, 'comboWindow 2.2 (SCORE-02)');
   eq(CFG.comboCap, 10, 'combo cap x10 (SCORE-03)');
   eq(CFG.hazardDelay, 9, 'hazard grace period 9s (DIFF-02)');
@@ -221,6 +222,20 @@ async function main(){
   g.lastBounceAt = g.totalT - 1;
   K.attemptBounce(g, 400, 340, false);
   ok(-g.ball.vy > weak, 'a charged bounce beats a quick tap (CORE-05)');
+
+  /* playtest fairness: a wider hitbox, wider still for blunt fingers */
+  g = fresh(800, 600);
+  ok(K.attemptBounce(g, 400 + CFG.ballRadius * 2.5, 300, false),
+     'a click at 2.5 ball radii connects after the fairness widen (CORE-02)');
+  g = fresh(800, 600);
+  ok(!K.attemptBounce(g, 400 + CFG.ballRadius * 2.8, 300, false),
+     'a mouse click at 2.8 radii still misses, so the widen stays challenging');
+  g = fresh(800, 600);
+  ok(K.attemptBounce(g, 400 + CFG.ballRadius * 2.8, 300, false, true),
+     'the same 2.8-radii click connects for a finger (touch hitbox)');
+  g = fresh(800, 600);
+  ok(!K.attemptBounce(g, 400 + CFG.ballRadius * 3.2, 300, false, true),
+     'even a finger misses beyond the touch hitbox');
 
   /* ================================================ 6. anti-spam and miss */
   sec('6. rate limit, multi-touch, miss (CORE-07/08)');
@@ -1282,6 +1297,14 @@ async function main(){
   const pl = doc.getElementById('privacyLink');
   ok(!!pl && pl.getAttribute('href') === 'https://demerest.github.io/click-bounce/privacy.html',
      'the menu links the hosted privacy policy (Play user-data policy)');
+  /* touch-only devices get no keyboard advertised; the headless desktop keeps it */
+  eq(K.touchOnlyInput(false, true, 5), true, 'a coarse-pointer touch device hides PC controls');
+  eq(K.touchOnlyInput(true, true, 5), false, 'a touch laptop with a fine pointer keeps PC controls');
+  eq(K.touchOnlyInput(true, false, 0), false, 'a plain desktop keeps PC controls');
+  eq(K.touchOnlyInput(false, false, 0), false, 'no pointer information keeps PC controls');
+  ok(!doc.body.classList.contains('touchOnly'), 'the headless harness keeps the PC key hints');
+  ok(win.getComputedStyle(doc.querySelector('#startBtn .kbd')).display !== 'none',
+     'the key chips stay visible where a keyboard exists');
   /* reworked menu: one section per mode, icon legends, coloured mode buttons */
   const menuEl = doc.getElementById('menu');
   const heads = Array.prototype.map.call(menuEl.querySelectorAll('.msec h2'), h => h.textContent.toLowerCase());

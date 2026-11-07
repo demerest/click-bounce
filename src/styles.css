@@ -118,6 +118,7 @@ button.ghost{display:block; width:100%; margin-top:10px; font-family:var(--mono)
   padding:11px 0; cursor:pointer;}
 button.ghost:hover{color:var(--ink); border-color:var(--dim);}
 .hint{font-family:var(--mono); font-size:11px; color:#565e70; text-align:center; margin:14px 0 0;}
+body.touchOnly .kbd, body.touchOnly .pcOnly{display:none;}
 #finalScore{font-family:var(--mono); font-size:56px; font-weight:900; color:var(--accent);
   line-height:1; margin:6px 0 14px; text-shadow:0 3px 0 rgba(0,0,0,.5);}
 .stats{display:flex; gap:8px; margin-bottom:16px;}
