@@ -51,7 +51,11 @@ export const CFG = {
 
   /* ---------------- combo & scoring (SCORE-01..05) ---------------- */
   comboWindow: 2.2,
-  comboCap: 10,                 // SCORE-03
+  comboWindowFullAt: 10,        // SCORE-02: full window up to this chain length
+  comboWindowStep: 0.1,         // past it the window shrinks per step (engagement)
+  comboWindowMin: 0.8,          // pillar 4: the shrink floors here
+  comboCap: 25,                 // SCORE-03
+  achComboAt: 10,               // the x10 badge keeps its own milestone
   bouncePoints: 5,              // SCORE-01
   starPoints: 40,               // PICK-01
   heavyPoints: 200,             // Phase 3 heavy star

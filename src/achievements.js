@@ -61,7 +61,7 @@ export function achUnlock(g, id){
 /* Conditions are checked here so triggers stay in one auditable place. */
 function checkConditions(g){
   if (g.state !== 'play') return;
-  if (g.combo >= CFG.comboCap) achUnlock(g, 'combo10');
+  if (g.combo >= CFG.achComboAt) achUnlock(g, 'combo10');
   if (g.starsRun >= CFG.achStars) achUnlock(g, 'stars3');
   if (g.elapsed >= CFG.achSurvive) achUnlock(g, 'live120');
   if (g.shieldSaves >= 1) achUnlock(g, 'save1');

@@ -139,7 +139,11 @@ async function main(){
   eq(CFG.hitRadiusMul, 2.6, 'hitRadiusMul 2.6 (CORE-02)');
   eq(CFG.hitRadiusMulTouch, 3.0, 'hitRadiusMulTouch 3.0 (CORE-02)');
   eq(CFG.comboWindow, 2.2, 'comboWindow 2.2 (SCORE-02)');
-  eq(CFG.comboCap, 10, 'combo cap x10 (SCORE-03)');
+  eq(CFG.comboWindowFullAt, 10, 'the combo window stays full to x10 (SCORE-02)');
+  eq(CFG.comboWindowStep, 0.1, 'past x10 the window shrinks 0.1s per link');
+  eq(CFG.comboWindowMin, 0.8, 'the shrinking window floors at 0.8s (pillar 4)');
+  eq(CFG.comboCap, 25, 'combo cap x25 (SCORE-03)');
+  eq(CFG.achComboAt, 10, 'the x10 badge keeps its own milestone');
   eq(CFG.hazardDelay, 9, 'hazard grace period 9s (DIFF-02)');
   eq(CFG.hazardIntervalStart, 3.4, 'hazard interval starts at 3.4s (DIFF-03)');
   eq(CFG.hazardIntervalMin, 1.15, 'hazard interval floor 1.15s (DIFF-03)');
@@ -237,6 +241,23 @@ async function main(){
   ok(!K.attemptBounce(g, 400 + CFG.ballRadius * 3.2, 300, false, true),
      'even a finger misses beyond the touch hitbox');
 
+  /* engagement: the chain window tightens past x10 */
+  eq(K.comboWindowFor(1), 2.2, 'the window is full inside x10');
+  eq(K.comboWindowFor(10), 2.2, 'the window is still full at x10');
+  eq(K.comboWindowFor(11), 2.1, 'x11 tightens the window by one step');
+  eq(K.comboWindowFor(24), 0.8, 'the window floors at comboWindowMin');
+  eq(K.comboWindowFor(25), 0.8, 'the cap chain keeps the floored window');
+  eq(K.comboWindowFor(40), 0.8, 'beyond the cap the window never goes below the floor');
+  g = fresh(800, 600);
+  for (let i = 0; i < 12; i++){
+    g.totalT += 0.5;                       // clear the cooldown, keep the charge
+    g.ball.x = 400; g.ball.y = 300; g.ball.vx = 0; g.ball.vy = 0;
+    K.attemptBounce(g, 400, 340, false);
+  }
+  eq(g.combo, 12, 'twelve chained bounces reach x12');
+  eq(g.comboWindowNow, 2, 'x12 leaves a 2.0s window');
+  near(g.comboTimer, K.comboWindowFor(12), 1e-9, 'the live window follows the chain length');
+
   /* ================================================ 6. anti-spam and miss */
   sec('6. rate limit, multi-touch, miss (CORE-07/08)');
   g = fresh(800, 600);
@@ -315,8 +336,12 @@ async function main(){
   eq(g.score - s0, 50, 'combo 10 scores 5 x 10 (SCORE-01)');
   g.lastBounceAt = g.totalT - 1; s0 = g.score;
   K.attemptBounce(g, 400, 340, false);
-  eq(g.combo, 11, 'the counter keeps climbing past the cap');
-  eq(g.score - s0, 50, 'scoring is capped at x10 (SCORE-03)');
+  eq(g.combo, 11, 'the counter keeps climbing past the old cap');
+  eq(g.score - s0, 55, 'combo 11 scores 5 x 11 under the x25 cap (SCORE-01/03)');
+  g.combo = 25; g.lastBounceAt = g.totalT - 1; s0 = g.score;
+  K.attemptBounce(g, 400, 340, false);
+  eq(g.combo, 26, 'the counter can pass the cap');
+  eq(g.score - s0, 125, 'scoring is capped at x25 (SCORE-03)');
 
   /* ================================================ 9. hazards and fairness */
   sec('9. saw spawning: fairness, caps, pillar 3');
@@ -823,7 +848,10 @@ async function main(){
   K.updateFlow(G, 1); K.updateFlow(G, 0);
   eq(doc.getElementById('finalScoreVal').textContent, '1234', 'shows the score');
   eq(doc.getElementById('finalBounces').textContent, '42', 'shows the bounce count');
-  eq(doc.getElementById('finalCombo').textContent, '\u00d710', 'shows max combo, capped for display');
+  eq(doc.getElementById('finalCombo').textContent, '\u00d712', 'shows the max combo under the cap');
+  G.maxCombo = 30; G.panelShown = false; G.overAt = win.performance.now() - 100000;
+  K.updateFlow(G, 1); K.updateFlow(G, 0);
+  eq(doc.getElementById('finalCombo').textContent, '\u00d725', 'the display caps at x25 (SCORE-03)');
   eq(doc.getElementById('finalTime').textContent, '65s', 'shows the run time');
   eq(doc.getElementById('finalBest').textContent, '1234', 'shows the best');
   eq(doc.getElementById('newBest').style.display, 'inline-block', 'shows the NEW BEST flag');
@@ -837,9 +865,16 @@ async function main(){
   K.updateHud(G);
   eq(doc.getElementById('score').textContent, '4321', 'HUD shows the score');
   eq(doc.getElementById('best').textContent, 'BEST 9999', 'HUD shows the best');
-  eq(doc.getElementById('combo').textContent, '\u00d710 MAX', 'HUD shows MAX at the cap (SCORE-03)');
+  eq(doc.getElementById('combo').textContent, '\u00d712', 'the HUD shows the raw chain past the old cap');
+  G.combo = CFG.comboCap; K.updateHud(G);
+  eq(doc.getElementById('combo').textContent, '\u00d725 MAX', 'HUD shows MAX at the cap (SCORE-03)');
+  G.combo = 12; K.updateHud(G);
   near(parseFloat(doc.getElementById('comboBar').style.width), 1.1 / CFG.comboWindow * 100, 1.5,
        'the combo bar shows the remaining window (SCORE-04)');
+  G.comboWindowNow = 1.0; G.comboTimer = 0.8; K.updateHud(G);
+  near(parseFloat(doc.getElementById('comboBar').style.width), 80, 1.5,
+       'the bar drains against the live (shrunken) window');
+  G.comboWindowNow = CFG.comboWindow; G.comboTimer = 1.1; K.updateHud(G);
   const fxText = doc.getElementById('effects').textContent;
   ok(/SHIELD/.test(fxText), 'the shield effect has a visible pill');
   ok(/SLOW/.test(fxText), 'the slow-mo effect has a visible pill');
@@ -1155,7 +1190,10 @@ async function main(){
   /* ================================================== 36. share (Phase 4) */
   sec('36. share score: plain text, clipboard only');
   g = fresh(800, 600); g.score = 1240; g.maxCombo = 12; g.elapsed = 87.4;
-  eq(K.shareText(g), 'KEEP IT UP \u2014 1240 pts, \u00d710 combo, 87s', 'classic share line');
+  eq(K.shareText(g), 'KEEP IT UP \u2014 1240 pts, \u00d712 combo, 87s', 'classic share line');
+  g.maxCombo = 30;
+  eq(K.shareText(g), 'KEEP IT UP \u2014 1240 pts, \u00d725 combo, 87s', 'the share line caps at x25');
+  g.maxCombo = 12;
   g.mode = 'climb'; g.score = 320;
   eq(K.shareText(g), 'KEEP IT UP \u2014 CLIMB 320 m in 87s', 'climb share line');
   g.mode = 'classic'; g.daily = { key: '2026-01-01' };
@@ -1240,7 +1278,12 @@ async function main(){
   eq(g.state, 'dying', 'a band saw kills');
   g = K.newGame(800, 600); K.startClimb(g);
   g.shield = true;
-  g.ball.x = g.climb.bands[0].saws[0].x; g.ball.y = g.climb.bands[0].saws[0].y;
+  const isoBand = g.climb.bands[0];
+  g.ball.x = isoBand.saws[0].x; g.ball.y = isoBand.saws[0].y;
+  /* park the neighbours: band layout is random per run, and a second saw in
+     kill range would legitimately finish the ball after the shield pops */
+  for (let i = 1; i < isoBand.saws.length; i++){ isoBand.saws[i].x = -9999; isoBand.saws[i].y = -9999; }
+  for (let i = 0; i < isoBand.items.length; i++) isoBand.items[i].alive = false;
   K.climbUpdate(g, DT);
   eq(g.state, 'play', 'a shield absorbs a band saw');
   ok(!g.shield, 'the shield is consumed by a band saw');
@@ -1305,6 +1348,11 @@ async function main(){
   ok(!doc.body.classList.contains('touchOnly'), 'the headless harness keeps the PC key hints');
   ok(win.getComputedStyle(doc.querySelector('#startBtn .kbd')).display !== 'none',
      'the key chips stay visible where a keyboard exists');
+  eq(K.fallbackDisplay(100, 100, 100), true, 'identical probe widths mean no heavy face: synthetise');
+  eq(K.fallbackDisplay(120, 100, 110), false, 'a resolving Impact keeps the native display face');
+  eq(K.fallbackDisplay(100, 100, 110), false, 'a resolving Arial Black keeps the native display face');
+  ok(!doc.body.classList.contains('noDisplay'), 'the headless harness keeps the native display face');
+  eq(doc.getElementById('startBtn').textContent.indexOf('CLASSIC'), 0, 'the classic button reads CLASSIC');
   /* reworked menu: one section per mode, icon legends, coloured mode buttons */
   const menuEl = doc.getElementById('menu');
   const heads = Array.prototype.map.call(menuEl.querySelectorAll('.msec h2'), h => h.textContent.toLowerCase());
@@ -1376,6 +1424,18 @@ async function main(){
   const panelEl = menuEl.querySelector('.panel');
   ok(panelEl.scrollHeight <= panelEl.clientHeight + 2, 'the whole menu fits without scrolling',
      panelEl.scrollHeight + ' vs ' + panelEl.clientHeight);
+  f.style.width = fw; f.style.height = fh;
+  await sleep(120);
+  win.dispatchEvent(new win.Event('resize'));
+  /* phone widths: the combo meter ducks under the score, away from the camera */
+  f.style.width = '360px'; f.style.height = '640px';
+  await sleep(120);
+  win.dispatchEvent(new win.Event('resize'));
+  const cbR = doc.getElementById('comboBox').getBoundingClientRect();
+  const sbR = doc.getElementById('scoreBox').getBoundingClientRect();
+  ok(cbR.left < 40 && cbR.top >= sbR.bottom - 1,
+     'on phone widths the combo meter sits top-left below the score column',
+     cbR.left + ',' + cbR.top + ' vs score bottom ' + sbR.bottom);
   f.style.width = fw; f.style.height = fh;
   await sleep(120);
   win.dispatchEvent(new win.Event('resize'));

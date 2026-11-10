@@ -48,7 +48,7 @@ export function createGame(){
 
     /* scoring (SCORE-*) */
     score: 0, best: 0, newBest: false,
-    combo: 0, comboTimer: 0, maxCombo: 0, bounces: 0,
+    combo: 0, comboTimer: 0, comboWindowNow: 0, maxCombo: 0, bounces: 0,
     starsRun: 0, shieldSaves: 0,      // Phase 4 achievement counters
 
     /* active effects */
@@ -95,7 +95,8 @@ export function resetBall(g){
 }
 
 export function resetRun(g){
-  g.score = 0; g.combo = 0; g.comboTimer = 0; g.maxCombo = 0; g.bounces = 0;
+  g.score = 0; g.combo = 0; g.comboTimer = 0; g.comboWindowNow = CFG.comboWindow;
+  g.maxCombo = 0; g.bounces = 0;
   g.starsRun = 0; g.shieldSaves = 0;
   g.newBest = false;
   g.elapsed = 0;
@@ -149,6 +150,14 @@ export function densityMul(g){
 
 export function pickupCapNow(g){
   return Math.min(CFG.pickupCapMax, Math.round(CFG.pickupCap * densityMul(g)));
+}
+
+/* SCORE-02 engagement: the chain window stays generous to x10, then tightens
+ * by one step per link so long chains demand real precision. */
+export function comboWindowFor(combo){
+  if (combo <= CFG.comboWindowFullAt) return CFG.comboWindow;
+  return Math.max(CFG.comboWindowMin,
+    CFG.comboWindow - (combo - CFG.comboWindowFullAt) * CFG.comboWindowStep);
 }
 
 export function countKind(g, kind){

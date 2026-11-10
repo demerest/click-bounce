@@ -119,6 +119,9 @@ button.ghost{display:block; width:100%; margin-top:10px; font-family:var(--mono)
 button.ghost:hover{color:var(--ink); border-color:var(--dim);}
 .hint{font-family:var(--mono); font-size:11px; color:#565e70; text-align:center; margin:14px 0 0;}
 body.touchOnly .kbd, body.touchOnly .pcOnly{display:none;}
+/* no Impact/Arial Black on this platform: synthetic weight keeps the display
+   face as heavy as the web build instead of a light fallback */
+body.noDisplay h1, body.noDisplay .modeBtn, body.noDisplay button.big{font-weight:900;}
 #finalScore{font-family:var(--mono); font-size:56px; font-weight:900; color:var(--accent);
   line-height:1; margin:6px 0 14px; text-shadow:0 3px 0 rgba(0,0,0,.5);}
 .stats{display:flex; gap:8px; margin-bottom:16px;}
@@ -178,6 +181,12 @@ body.touchOnly .kbd, body.touchOnly .pcOnly{display:none;}
 }
 
 /* ---------- short screens: keep the accordion compact ---------- */
+@media (max-width: 720px){
+  /* phones put the front camera where the centred combo meter sat: park it
+     under the score column instead */
+  #comboBox{top:96px; left:16px; transform:none; text-align:left;}
+  #comboBarWrap{margin:5px 0 0;}
+}
 @media (max-height: 720px){
   .panel{padding:18px 22px 18px;}
   .panelBody{max-height:52vh;}

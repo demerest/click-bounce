@@ -6,9 +6,9 @@
 import { CFG, KEYS } from './config.js';
 import { clamp } from './math.js';
 import { LS } from './storage.js';
-import { DOM, detectTouchOnly, showFatal, touchOnlyInput } from './dom.js';
+import { DOM, detectFallbackDisplay, detectTouchOnly, fallbackDisplay, showFatal, touchOnlyInput } from './dom.js';
 import { Snd } from './audio.js';
-import { bgBaseHue, createGame, densityMul, gravityNow, pickupCapNow, resetRun, timeScaleNow } from './state.js';
+import { bgBaseHue, comboWindowFor, createGame, densityMul, gravityNow, pickupCapNow, resetRun, timeScaleNow } from './state.js';
 import { addEdgeWarn, addRing, addScore, addText, burst, shakeBy, updateFx } from './fx.js';
 import { attemptBounce, ballHitFloor, updateBall } from './ball.js';
 import { spawnPickup, spawnSaw, spawnSeeker, spawnSpike, sawInterval, updateSpawners } from './spawn.js';
@@ -171,6 +171,7 @@ export function boot(){
     LS.probe();
     G.reducedMotion = detectReducedMotion();
     if (detectTouchOnly()) document.body.classList.add('touchOnly');
+    if (detectFallbackDisplay()) document.body.classList.add('noDisplay');
     applyCssKnobs();
     R = createRenderer(DOM.canvas);
     R.resize(G);
@@ -215,6 +216,7 @@ export function boot(){
         updateHazards: updateHazards, updatePickups: updatePickups,
         collectPickup: collectPickup, updateBall: updateBall, updateHud: updateHud,
         showFatal: showFatal, touchOnlyInput: touchOnlyInput,
+        fallbackDisplay: fallbackDisplay, comboWindowFor: comboWindowFor,
       };
       R.draw(G);
     } else {

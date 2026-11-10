@@ -139,6 +139,9 @@ button.ghost{display:block; width:100%; margin-top:10px; font-family:var(--mono)
 button.ghost:hover{color:var(--ink); border-color:var(--dim);}
 .hint{font-family:var(--mono); font-size:11px; color:#565e70; text-align:center; margin:14px 0 0;}
 body.touchOnly .kbd, body.touchOnly .pcOnly{display:none;}
+/* no Impact/Arial Black on this platform: synthetic weight keeps the display
+   face as heavy as the web build instead of a light fallback */
+body.noDisplay h1, body.noDisplay .modeBtn, body.noDisplay button.big{font-weight:900;}
 #finalScore{font-family:var(--mono); font-size:56px; font-weight:900; color:var(--accent);
   line-height:1; margin:6px 0 14px; text-shadow:0 3px 0 rgba(0,0,0,.5);}
 .stats{display:flex; gap:8px; margin-bottom:16px;}
@@ -198,6 +201,12 @@ body.touchOnly .kbd, body.touchOnly .pcOnly{display:none;}
 }
 
 /* ---------- short screens: keep the accordion compact ---------- */
+@media (max-width: 720px){
+  /* phones put the front camera where the centred combo meter sat: park it
+     under the score column instead */
+  #comboBox{top:96px; left:16px; transform:none; text-align:left;}
+  #comboBarWrap{margin:5px 0 0;}
+}
 @media (max-height: 720px){
   .panel{padding:18px 22px 18px;}
   .panelBody{max-height:52vh;}
@@ -238,7 +247,7 @@ body.touchOnly .kbd, body.touchOnly .pcOnly{display:none;}
     <h1 id="menuTitle">KEEP <em>IT&nbsp;UP</em></h1>
     <p class="tag">The jelly ball knows only one word: <b>boing</b>. Pick a mode.</p>
     <div class="modeRow">
-      <button id="startBtn" class="modeBtn gold" type="button">START CLASSIC<span class="kbd">space / enter</span></button>
+      <button id="startBtn" class="modeBtn gold" type="button">CLASSIC<span class="kbd">space / enter</span></button>
       <button id="climbBtn" class="modeBtn red" type="button">CLIMB<span class="kbd">C</span></button>
       <button id="dailyBtn" class="modeBtn violet" type="button">DAILY<span class="kbd">D</span></button>
       <p class="hint">the ball forgives misses &mdash; never the floor</p>
@@ -248,7 +257,7 @@ body.touchOnly .kbd, body.touchOnly .pcOnly{display:none;}
         <summary><h2>The one rule</h2></summary>
         <ul class="rules">
           <li><b>Click / tap near the ball</b> &mdash; it is pushed <b>away</b> from your finger, so where you click steers it.</li>
-          <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing, and chain bounces inside 2.2s for <b>combo</b> (scoring caps at &times;10).</li>
+          <li>Quick taps are <b>weak</b>. Let it fall a beat for a full-power boing, and chain bounces for <b>combo</b>: 2.2s up to &times;10, then the window shrinks every step (scoring caps at &times;25).</li>
           <li>A miss only breaks your combo.<span class="pcOnly"> <b>P</b> / <b>Esc</b> pauses, <b>M</b> mutes.</span></li>
         </ul>
       </details>
@@ -402,7 +411,11 @@ const CFG = {
 
   /* ---------------- combo & scoring (SCORE-01..05) ---------------- */
   comboWindow: 2.2,
-  comboCap: 10,                 // SCORE-03
+  comboWindowFullAt: 10,        // SCORE-02: full window up to this chain length
+  comboWindowStep: 0.1,         // past it the window shrinks per step (engagement)
+  comboWindowMin: 0.8,          // pillar 4: the shrink floors here
+  comboCap: 25,                 // SCORE-03
+  achComboAt: 10,               // the x10 badge keeps its own milestone
   bouncePoints: 5,              // SCORE-01
   starPoints: 40,               // PICK-01
   heavyPoints: 200,             // Phase 3 heavy star
@@ -904,6 +917,25 @@ function detectTouchOnly(){
   } catch (e){ return false; }
 }
 
+/* Impact / Arial Black exist on desktops but not on Android, where the display
+ * stack silently falls back to a light sans at weight 400 (playtest: the menu
+ * buttons looked thin next to the web build). Where no heavy face resolves,
+ * synthetise the weight instead. */
+function fallbackDisplay(impactW, plainW, blackW){
+  return Math.abs(impactW - plainW) < 0.5 && Math.abs(blackW - plainW) < 0.5;
+}
+
+function detectFallbackDisplay(){
+  try {
+    const c = document.createElement('canvas').getContext('2d');
+    const probe = 'WWWWWWWW';
+    c.font = '32px Impact, sans-serif'; const a = c.measureText(probe).width;
+    c.font = '32px sans-serif'; const b = c.measureText(probe).width;
+    c.font = '32px "Arial Black", sans-serif'; const d = c.measureText(probe).width;
+    return fallbackDisplay(a, b, d);
+  } catch (e){ return false; }
+}
+
 
 /* ===================== audio.js ===================== */
 
@@ -1096,7 +1128,7 @@ function createGame(){
 
     /* scoring (SCORE-*) */
     score: 0, best: 0, newBest: false,
-    combo: 0, comboTimer: 0, maxCombo: 0, bounces: 0,
+    combo: 0, comboTimer: 0, comboWindowNow: 0, maxCombo: 0, bounces: 0,
     starsRun: 0, shieldSaves: 0,      // Phase 4 achievement counters
 
     /* active effects */
@@ -1143,7 +1175,8 @@ function resetBall(g){
 }
 
 function resetRun(g){
-  g.score = 0; g.combo = 0; g.comboTimer = 0; g.maxCombo = 0; g.bounces = 0;
+  g.score = 0; g.combo = 0; g.comboTimer = 0; g.comboWindowNow = CFG.comboWindow;
+  g.maxCombo = 0; g.bounces = 0;
   g.starsRun = 0; g.shieldSaves = 0;
   g.newBest = false;
   g.elapsed = 0;
@@ -1197,6 +1230,14 @@ function densityMul(g){
 
 function pickupCapNow(g){
   return Math.min(CFG.pickupCapMax, Math.round(CFG.pickupCap * densityMul(g)));
+}
+
+/* SCORE-02 engagement: the chain window stays generous to x10, then tightens
+ * by one step per link so long chains demand real precision. */
+function comboWindowFor(combo){
+  if (combo <= CFG.comboWindowFullAt) return CFG.comboWindow;
+  return Math.max(CFG.comboWindowMin,
+    CFG.comboWindow - (combo - CFG.comboWindowFullAt) * CFG.comboWindowStep);
 }
 
 function countKind(g, kind){
@@ -1385,7 +1426,8 @@ function attemptBounce(g, cx, cy, auto, touch){
 
   if (g.state === 'play'){
     g.combo = g.comboTimer > 0 ? g.combo + 1 : 1;
-    g.comboTimer = CFG.comboWindow;
+    g.comboWindowNow = comboWindowFor(g.combo);
+    g.comboTimer = g.comboWindowNow;
     g.maxCombo = Math.max(g.maxCombo, g.combo);
     g.bounces++;
     /* SCORE-01/03 — climb mode scores metres only (Phase 5) */
@@ -1514,7 +1556,7 @@ function achUnlock(g, id){
 /* Conditions are checked here so triggers stay in one auditable place. */
 function checkConditions(g){
   if (g.state !== 'play') return;
-  if (g.combo >= CFG.comboCap) achUnlock(g, 'combo10');
+  if (g.combo >= CFG.achComboAt) achUnlock(g, 'combo10');
   if (g.starsRun >= CFG.achStars) achUnlock(g, 'stars3');
   if (g.elapsed >= CFG.achSurvive) achUnlock(g, 'live120');
   if (g.shieldSaves >= 1) achUnlock(g, 'save1');
@@ -1773,7 +1815,7 @@ function updateHud(g){
       hudCombo = capped;
       DOM.combo.innerHTML = '&times;' + capped + (g.combo >= CFG.comboCap ? ' MAX' : '');
     }
-    const pct = Math.round(g.comboTimer / CFG.comboWindow * 100);
+    const pct = Math.round(g.comboTimer / (g.comboWindowNow || CFG.comboWindow) * 100);
     if (pct !== hudComboWidth){
       hudComboWidth = pct;
       DOM.comboBar.style.width = pct + '%';
@@ -3719,6 +3761,7 @@ function boot(){
     LS.probe();
     G.reducedMotion = detectReducedMotion();
     if (detectTouchOnly()) document.body.classList.add('touchOnly');
+    if (detectFallbackDisplay()) document.body.classList.add('noDisplay');
     applyCssKnobs();
     R = createRenderer(DOM.canvas);
     R.resize(G);
@@ -3763,6 +3806,7 @@ function boot(){
         updateHazards: updateHazards, updatePickups: updatePickups,
         collectPickup: collectPickup, updateBall: updateBall, updateHud: updateHud,
         showFatal: showFatal, touchOnlyInput: touchOnlyInput,
+        fallbackDisplay: fallbackDisplay, comboWindowFor: comboWindowFor,
       };
       R.draw(G);
     } else {

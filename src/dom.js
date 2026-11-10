@@ -76,3 +76,22 @@ export function detectTouchOnly(){
       navigator.maxTouchPoints || 0);
   } catch (e){ return false; }
 }
+
+/* Impact / Arial Black exist on desktops but not on Android, where the display
+ * stack silently falls back to a light sans at weight 400 (playtest: the menu
+ * buttons looked thin next to the web build). Where no heavy face resolves,
+ * synthetise the weight instead. */
+export function fallbackDisplay(impactW, plainW, blackW){
+  return Math.abs(impactW - plainW) < 0.5 && Math.abs(blackW - plainW) < 0.5;
+}
+
+export function detectFallbackDisplay(){
+  try {
+    const c = document.createElement('canvas').getContext('2d');
+    const probe = 'WWWWWWWW';
+    c.font = '32px Impact, sans-serif'; const a = c.measureText(probe).width;
+    c.font = '32px sans-serif'; const b = c.measureText(probe).width;
+    c.font = '32px "Arial Black", sans-serif'; const d = c.measureText(probe).width;
+    return fallbackDisplay(a, b, d);
+  } catch (e){ return false; }
+}

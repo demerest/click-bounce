@@ -127,7 +127,7 @@ export function updateHud(g){
       hudCombo = capped;
       DOM.combo.innerHTML = '&times;' + capped + (g.combo >= CFG.comboCap ? ' MAX' : '');
     }
-    const pct = Math.round(g.comboTimer / CFG.comboWindow * 100);
+    const pct = Math.round(g.comboTimer / (g.comboWindowNow || CFG.comboWindow) * 100);
     if (pct !== hudComboWidth){
       hudComboWidth = pct;
       DOM.comboBar.style.width = pct + '%';

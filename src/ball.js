@@ -6,6 +6,7 @@ import { CFG } from './config.js';
 import { addRing, addScore, addText, burst, shakeBy } from './fx.js';
 import { clamp, decay, lerpAngle } from './math.js';
 import { Snd } from './audio.js';
+import { comboWindowFor } from './state.js';
 
 /* One pointer press. `auto` = attract-mode autopilot (no score, no combo, no miss). */
 export function attemptBounce(g, cx, cy, auto, touch){
@@ -62,7 +63,8 @@ export function attemptBounce(g, cx, cy, auto, touch){
 
   if (g.state === 'play'){
     g.combo = g.comboTimer > 0 ? g.combo + 1 : 1;
-    g.comboTimer = CFG.comboWindow;
+    g.comboWindowNow = comboWindowFor(g.combo);
+    g.comboTimer = g.comboWindowNow;
     g.maxCombo = Math.max(g.maxCombo, g.combo);
     g.bounces++;
     /* SCORE-01/03 — climb mode scores metres only (Phase 5) */
