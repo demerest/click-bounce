@@ -102,7 +102,9 @@ ul.legend b{color:var(--ink);}
 .installHint{display:none; flex:0 0 auto; margin:0 0 10px; padding:8px 10px;
   font-family:var(--mono); font-size:11px; line-height:1.5; color:var(--cool);
   border:2px dashed var(--cool); background:rgba(78,205,196,.08); text-align:center;}
-body.appleTouch .installHint{display:block;}
+body.appleTouch #installHint{display:block;}
+body.appleFramed #installHintFramed{display:block;}
+.installHint a{color:var(--ink); text-decoration:underline;}
 .modeBtn{flex:1 1 120px; font-family:var(--display); font-size:17px; letter-spacing:.06em;
   border:0; padding:11px 6px; cursor:pointer; color:#181206;
   transition:transform .08s, box-shadow .08s;}

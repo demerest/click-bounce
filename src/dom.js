@@ -114,3 +114,14 @@ export function detectAppleInstall(){
       navigator.maxTouchPoints || 0, standalone);
   } catch (e){ return false; }
 }
+
+/* Inside an embed (itch.io iframes the game) the browser installs the OUTER
+ * page: manifest and touch-icon metadata only ever apply to the top-level
+ * document. Detect the frame so the menu can point at the standalone page
+ * instead of promising an install that would capture the host site. */
+export function framedWindow(isTop){ return !isTop; }
+
+export function detectFramed(){
+  try { return framedWindow(window.top === window.self); }
+  catch (e){ return true; }          // blocked cross-origin top access means framed
+}

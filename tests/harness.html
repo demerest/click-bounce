@@ -905,10 +905,12 @@ async function main(){
 
   const html = doc.documentElement.outerHTML;
   /* Play's user-data policy mandates an in-app privacy-policy link; that single
-     user-initiated navigation to our own Pages host is allowed, as are the two
-     relative PWA shell references (manifest, Apple touch icon) that only the
-     platform fetches when installing - every other href/src/URL still fails. */
+     user-initiated navigation to our own Pages host is allowed, as is the
+     standalone-pages link shown inside embeds, as are the two relative PWA shell
+     references (manifest, Apple touch icon) that only the platform fetches when
+     installing - every other href/src/URL still fails. */
   let pure = html.split(' href="https://demerest.github.io/click-bounce/privacy.html"').join('');
+  pure = pure.split(' href="https://demerest.github.io/click-bounce/"').join('');
   pure = pure.split(' href="manifest.webmanifest"').join('');
   pure = pure.split(' href="apple-touch-icon.png"').join('');
   ok(!/\ssrc\s*=/.test(pure), 'no external script or image references (PORT-01)');
@@ -916,6 +918,8 @@ async function main(){
   ok(!/https?:\/\//.test(pure), 'no absolute URLs anywhere (PORT-01)');
   ok(/ href="https:\/\/demerest\.github\.io\/click-bounce\/privacy\.html"/.test(html),
      'the allowed external reference is the privacy policy link');
+  ok(/ href="https:\/\/demerest\.github\.io\/click-bounce\/"/.test(html),
+     'the embed install hint links the standalone Pages build');
   ok(/ href="manifest\.webmanifest"/.test(html) && / href="apple-touch-icon\.png"/.test(html),
      'the PWA shell references are relative, next to index.html (PORT-01)');
   ok(!/<img|background-image|\.png|\.jpe?g|\.gif|\.webp|\.svg|\.mp3|\.wav|\.ogg|\.woff/i.test(pure),
@@ -1380,6 +1384,14 @@ async function main(){
   ok(!doc.body.classList.contains('appleTouch'), 'the headless harness gets no install hint');
   eq(win.getComputedStyle(doc.getElementById('installHint')).display, 'none',
      'the install hint stays hidden off Apple devices');
+  ok(K.detectFramed(), 'the game knows the harness runs it inside an iframe');
+  eq(K.framedWindow(true), false, 'a top-level window is not framed');
+  eq(K.framedWindow(false), true, 'a window below top is framed');
+  ok(!doc.body.classList.contains('appleFramed'), 'no framed-Apple hint off Apple devices');
+  eq(win.getComputedStyle(doc.getElementById('installHintFramed')).display, 'none',
+     'the framed install hint stays hidden off Apple embeds');
+  eq(doc.getElementById('standaloneLink').getAttribute('target'), '_blank',
+     'the standalone link escapes the embed into a top-level tab');
   /* reworked menu: one section per mode, icon legends, coloured mode buttons */
   const menuEl = doc.getElementById('menu');
   const heads = Array.prototype.map.call(menuEl.querySelectorAll('.msec h2'), h => h.textContent.toLowerCase());

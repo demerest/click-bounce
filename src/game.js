@@ -6,7 +6,7 @@
 import { CFG, KEYS } from './config.js';
 import { clamp } from './math.js';
 import { LS } from './storage.js';
-import { DOM, appleInstallTarget, detectAppleInstall, detectFallbackDisplay, detectTouchOnly, fallbackDisplay, showFatal, touchOnlyInput } from './dom.js';
+import { DOM, appleInstallTarget, detectAppleInstall, detectFramed, detectFallbackDisplay, detectTouchOnly, fallbackDisplay, framedWindow, showFatal, touchOnlyInput } from './dom.js';
 import { Snd } from './audio.js';
 import { bgBaseHue, comboWindowFor, createGame, densityMul, gravityNow, pickupCapNow, resetRun, timeScaleNow } from './state.js';
 import { addEdgeWarn, addRing, addScore, addText, burst, shakeBy, updateFx } from './fx.js';
@@ -182,7 +182,7 @@ export function boot(){
     G.reducedMotion = detectReducedMotion();
     if (detectTouchOnly()) document.body.classList.add('touchOnly');
     if (detectFallbackDisplay()) document.body.classList.add('noDisplay');
-    if (detectAppleInstall()) document.body.classList.add('appleTouch');
+    if (detectAppleInstall()) document.body.classList.add(detectFramed() ? 'appleFramed' : 'appleTouch');
     applyCssKnobs();
     R = createRenderer(DOM.canvas);
     R.resize(G);
@@ -230,6 +230,7 @@ export function boot(){
         showFatal: showFatal, touchOnlyInput: touchOnlyInput,
         fallbackDisplay: fallbackDisplay, comboWindowFor: comboWindowFor,
         appleInstallTarget: appleInstallTarget,
+        detectFramed: detectFramed, framedWindow: framedWindow,
       };
       R.draw(G);
     } else {

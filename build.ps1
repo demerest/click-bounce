@@ -144,6 +144,7 @@ $devHtml = $devHtml.Replace('<!--@js-->', '<script type="module" src="src/game.j
 # Any other external reference, including a further href or any '://' inside JS,
 # still fails the build.
 $scanHtml = $indexHtml.Replace(' href="https://demerest.github.io/click-bounce/privacy.html"', '')
+$scanHtml = $scanHtml.Replace(' href="https://demerest.github.io/click-bounce/"', '')
 $scanHtml = $scanHtml.Replace(' href="manifest.webmanifest"', '').Replace(' href="apple-touch-icon.png"', '')
 foreach ($pat in @('://', ' src=', ' href=', 'url(', '@import')) {
   if ($scanHtml.IndexOf($pat) -ge 0) {
