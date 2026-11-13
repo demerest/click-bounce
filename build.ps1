@@ -137,11 +137,14 @@ $devHtml = $shellText.Replace('<!--@css-->', '<link rel="stylesheet" href="src/s
 $devHtml = $devHtml.Replace('<!--@js-->', '<script type="module" src="src/game.js"></script>')
 
 # PORT-01 / DATA-01: the shipped file must not reference anything outside itself.
-# One whitelisted exception: the privacy-policy link Play's user-data policy
-# requires in-app. It is a user-initiated navigation to this project's own Pages
-# host - the game itself never fetches it. Any other external reference, including
-# a second href or any '://' inside JS, still fails the build.
+# Whitelisted exceptions: the privacy-policy link Play's user-data policy
+# requires in-app (a user-initiated navigation to this project's own Pages host),
+# and the two relative PWA shell references (manifest, Apple touch icon) that only
+# the platform fetches when installing - game code itself never fetches anything.
+# Any other external reference, including a further href or any '://' inside JS,
+# still fails the build.
 $scanHtml = $indexHtml.Replace(' href="https://demerest.github.io/click-bounce/privacy.html"', '')
+$scanHtml = $scanHtml.Replace(' href="manifest.webmanifest"', '').Replace(' href="apple-touch-icon.png"', '')
 foreach ($pat in @('://', ' src=', ' href=', 'url(', '@import')) {
   if ($scanHtml.IndexOf($pat) -ge 0) {
     $fail += "index.html contains an external reference ('$pat') - violates PORT-01"

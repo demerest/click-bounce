@@ -153,10 +153,15 @@ export function climbUpdate(g, dt){
 
   for (let i = 0; i < c.bands.length; i++){
     const band = c.bands[i];
-    for (let s = 0; s < band.saws.length; s++){
+    for (let s = band.saws.length - 1; s >= 0; s--){
       const saw = band.saws[s];
       saw.rot += saw.rotV * dt;
-      if (!b.dead && hazardStrike(g, saw.x, saw.y, saw.r) === 'dead') return true;
+      if (b.dead) continue;
+      const strike = hazardStrike(g, saw.x, saw.y, saw.r);
+      if (strike === 'dead') return true;
+      /* as in classic: a shield save destroys the hazard - otherwise the still
+       * touching saw would kill on the very next frame (playtest bug) */
+      if (strike === 'shield') band.saws.splice(s, 1);
     }
     for (let it = 0; it < band.items.length; it++){
       const p = band.items[it];

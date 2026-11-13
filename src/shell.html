@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="color-scheme" content="dark">
 <meta name="description" content="KEEP IT UP - a one-click jelly-bounce arcade game. Zero assets, zero dependencies, zero network requests.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KEEP IT UP">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>KEEP IT UP - one-click jelly bounce</title>
 <script>
 /* Installed before the game so that even a failure to load or parse the bundle
@@ -42,6 +48,7 @@ window.addEventListener('error', function(e){
     <p class="eyebrow">ONE-CLICK ARCADE</p>
     <h1 id="menuTitle">KEEP <em>IT&nbsp;UP</em></h1>
     <p class="tag">The jelly ball knows only one word: <b>boing</b>. Pick a mode.</p>
+    <p id="installHint" class="installHint"><b>Install on iPhone / iPad:</b> tap <b>Share</b> &#8594; <b>Add to Home Screen</b>. It opens fullscreen and plays offline.</p>
     <div class="modeRow">
       <button id="startBtn" class="modeBtn gold" type="button">CLASSIC<span class="kbd">space / enter</span></button>
       <button id="climbBtn" class="modeBtn red" type="button">CLIMB<span class="kbd">C</span></button>

@@ -95,3 +95,22 @@ export function detectFallbackDisplay(){
     return fallbackDisplay(a, b, d);
   } catch (e){ return false; }
 }
+
+/* Apple home-screen install: iOS/iPadOS Safari, where iPadOS reports itself as
+ * MacIntel plus touch points. An app already running standalone needs no
+ * instructions. */
+export function appleInstallTarget(ua, platform, touchPoints, standalone){
+  const ios = /iPhone|iPod|iPad/.test(ua);
+  const ipadOs = platform === 'MacIntel' && touchPoints > 1;
+  return (ios || ipadOs) && !standalone;
+}
+
+export function detectAppleInstall(){
+  try {
+    const mm = window.matchMedia;
+    const standalone = navigator.standalone === true
+      || !!(mm && mm('(display-mode: standalone)').matches);
+    return appleInstallTarget(navigator.userAgent, navigator.platform || '',
+      navigator.maxTouchPoints || 0, standalone);
+  } catch (e){ return false; }
+}

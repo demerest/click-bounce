@@ -6,7 +6,7 @@
 import { CFG, KEYS } from './config.js';
 import { clamp } from './math.js';
 import { LS } from './storage.js';
-import { DOM, detectFallbackDisplay, detectTouchOnly, fallbackDisplay, showFatal, touchOnlyInput } from './dom.js';
+import { DOM, appleInstallTarget, detectAppleInstall, detectFallbackDisplay, detectTouchOnly, fallbackDisplay, showFatal, touchOnlyInput } from './dom.js';
 import { Snd } from './audio.js';
 import { bgBaseHue, comboWindowFor, createGame, densityMul, gravityNow, pickupCapNow, resetRun, timeScaleNow } from './state.js';
 import { addEdgeWarn, addRing, addScore, addText, burst, shakeBy, updateFx } from './fx.js';
@@ -158,6 +158,16 @@ function installErrorSurface(){
 
 function onResize(){ if (R) R.resize(G); }
 
+/* PWA shell: cache-first offline for installed home-screen apps. The game code
+ * itself still makes zero network requests; only the platform cache fetches. */
+function registerServiceWorker(){
+  try {
+    if (location.protocol === 'https:' && navigator.serviceWorker){
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    }
+  } catch (e){ /* local file scheme or blocked: the game plays regardless */ }
+}
+
 export function newTestGame(w, h){
   const g = createGame();
   g.W = w; g.H = h;
@@ -172,6 +182,7 @@ export function boot(){
     G.reducedMotion = detectReducedMotion();
     if (detectTouchOnly()) document.body.classList.add('touchOnly');
     if (detectFallbackDisplay()) document.body.classList.add('noDisplay');
+    if (detectAppleInstall()) document.body.classList.add('appleTouch');
     applyCssKnobs();
     R = createRenderer(DOM.canvas);
     R.resize(G);
@@ -183,6 +194,7 @@ export function boot(){
     bindInput(G);
     window.addEventListener('resize', onResize);
     installErrorSurface();
+    registerServiceWorker();
     updateHud(G);
     last = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 
@@ -217,6 +229,7 @@ export function boot(){
         collectPickup: collectPickup, updateBall: updateBall, updateHud: updateHud,
         showFatal: showFatal, touchOnlyInput: touchOnlyInput,
         fallbackDisplay: fallbackDisplay, comboWindowFor: comboWindowFor,
+        appleInstallTarget: appleInstallTarget,
       };
       R.draw(G);
     } else {

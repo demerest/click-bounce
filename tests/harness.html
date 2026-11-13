@@ -905,16 +905,21 @@ async function main(){
 
   const html = doc.documentElement.outerHTML;
   /* Play's user-data policy mandates an in-app privacy-policy link; that single
-     user-initiated navigation to our own Pages host is the one allowed external
-     reference - every other href/src/absolute URL still fails the build. */
-  const pure = html.split(' href="https://demerest.github.io/click-bounce/privacy.html"').join('');
+     user-initiated navigation to our own Pages host is allowed, as are the two
+     relative PWA shell references (manifest, Apple touch icon) that only the
+     platform fetches when installing - every other href/src/URL still fails. */
+  let pure = html.split(' href="https://demerest.github.io/click-bounce/privacy.html"').join('');
+  pure = pure.split(' href="manifest.webmanifest"').join('');
+  pure = pure.split(' href="apple-touch-icon.png"').join('');
   ok(!/\ssrc\s*=/.test(pure), 'no external script or image references (PORT-01)');
   ok(!/\shref\s*=/.test(pure), 'no external stylesheet or link references (PORT-01)');
   ok(!/https?:\/\//.test(pure), 'no absolute URLs anywhere (PORT-01)');
   ok(/ href="https:\/\/demerest\.github\.io\/click-bounce\/privacy\.html"/.test(html),
-     'the one allowed external reference is the privacy policy link');
-  ok(!/<img|background-image|\.png|\.jpe?g|\.gif|\.webp|\.svg|\.mp3|\.wav|\.ogg|\.woff/i.test(html),
-     'no bitmap, font or audio assets (UI-05, AUD-01)');
+     'the allowed external reference is the privacy policy link');
+  ok(/ href="manifest\.webmanifest"/.test(html) && / href="apple-touch-icon\.png"/.test(html),
+     'the PWA shell references are relative, next to index.html (PORT-01)');
+  ok(!/<img|background-image|\.png|\.jpe?g|\.gif|\.webp|\.svg|\.mp3|\.wav|\.ogg|\.woff/i.test(pure),
+     'no bitmap, font or audio assets in the game itself (UI-05, AUD-01)');
   ok(/<style>/.test(html), 'styles are inlined');
   ok(/:focus-visible/.test(html), 'focus styles exist for keyboard users (A11Y-02)');
   ok(/prefers-reduced-motion/.test(html), 'a reduced-motion media query exists (A11Y-01)');
@@ -1284,9 +1289,14 @@ async function main(){
      kill range would legitimately finish the ball after the shield pops */
   for (let i = 1; i < isoBand.saws.length; i++){ isoBand.saws[i].x = -9999; isoBand.saws[i].y = -9999; }
   for (let i = 0; i < isoBand.items.length; i++) isoBand.items[i].alive = false;
+  const sawsBefore = isoBand.saws.length;
   K.climbUpdate(g, DT);
   eq(g.state, 'play', 'a shield absorbs a band saw');
   ok(!g.shield, 'the shield is consumed by a band saw');
+  eq(isoBand.saws.length, sawsBefore - 1, 'a shield save destroys the band saw, as in classic (PICK-05)');
+  for (let i = 0; i < 30; i++) K.climbUpdate(g, DT);
+  eq(g.state, 'play', 'the shield save survives the follow-up frames of contact');
+  eq(isoBand.saws.length, sawsBefore - 1, 'the destroyed saw stays destroyed');
 
   g = K.newGame(800, 600); K.startClimb(g);
   const cband = g.climb.bands[0];
@@ -1353,6 +1363,23 @@ async function main(){
   eq(K.fallbackDisplay(100, 100, 110), false, 'a resolving Arial Black keeps the native display face');
   ok(!doc.body.classList.contains('noDisplay'), 'the headless harness keeps the native display face');
   eq(doc.getElementById('startBtn').textContent.indexOf('CLASSIC'), 0, 'the classic button reads CLASSIC');
+  doc.getElementById('startBtn').focus();
+  eq(win.getComputedStyle(doc.getElementById('startBtn')).outlineStyle, 'none',
+     'buttons carry no focus outline on web or touch (playtest)');
+  if (doc.activeElement && doc.activeElement.blur) doc.activeElement.blur();
+  eq(K.appleInstallTarget('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 'iPhone', 5, false), true,
+     'an iPhone in Safari gets the install instructions');
+  eq(K.appleInstallTarget('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 'iPhone', 5, true), false,
+     'an already installed web app gets no instructions');
+  eq(K.appleInstallTarget('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 'MacIntel', 5, false), true,
+     'iPadOS posing as MacIntel with touch gets the instructions');
+  eq(K.appleInstallTarget('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 'MacIntel', 0, false), false,
+     'a desktop Mac without touch gets no instructions');
+  eq(K.appleInstallTarget('Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36', 'Linux armv8l', 5, false), false,
+     'Android gets no Apple instructions');
+  ok(!doc.body.classList.contains('appleTouch'), 'the headless harness gets no install hint');
+  eq(win.getComputedStyle(doc.getElementById('installHint')).display, 'none',
+     'the install hint stays hidden off Apple devices');
   /* reworked menu: one section per mode, icon legends, coloured mode buttons */
   const menuEl = doc.getElementById('menu');
   const heads = Array.prototype.map.call(menuEl.querySelectorAll('.msec h2'), h => h.textContent.toLowerCase());
