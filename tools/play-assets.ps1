@@ -5,8 +5,10 @@
 .DESCRIPTION
   Loads tools/play-assets.html (which poses runs through the ?debug seam) at the
   exact viewport each asset needs and screenshots it: 512x512 icon, 1024x500
-  feature graphic, and four 1080x1920 (9:16) phone shots. No generated imagery:
-  every pixel is the game rendering itself.
+  feature graphic, four 1080x1920 (9:16) phone shots, 7-inch and 10-inch tablet
+  sets, a desktop set (also used for Play Games on PC screenshots), the 16:9
+  text-free Play Games feature graphic, and the 600x400 transparent Play Games
+  logo. No generated imagery: every pixel is the game rendering itself.
 
 .PARAMETER Port
   Loopback port for the temporary static server. Default 8145.
@@ -62,7 +64,26 @@ $shots = @(
   @{ scene = 'menu';    cw = 360;  ch = 640; dsf = 3; out = 'phone-1-menu.png' },
   @{ scene = 'classic'; cw = 360;  ch = 640; dsf = 3; out = 'phone-2-classic.png' },
   @{ scene = 'climb';   cw = 360;  ch = 640; dsf = 3; out = 'phone-3-climb.png' },
-  @{ scene = 'over';    cw = 360;  ch = 640; dsf = 3; out = 'phone-4-over.png' }
+  @{ scene = 'over';    cw = 360;  ch = 640; dsf = 3; out = 'phone-4-over.png' },
+  # 7-inch tablets: 16:9, sides inside 320..3840
+  @{ scene = 'menu';    cw = 960;  ch = 540;  dsf = 2; out = 'tab7-1-menu.png' },
+  @{ scene = 'classic'; cw = 960;  ch = 540;  dsf = 2; out = 'tab7-2-classic.png' },
+  @{ scene = 'climb';   cw = 960;  ch = 540;  dsf = 2; out = 'tab7-3-climb.png' },
+  @{ scene = 'over';    cw = 960;  ch = 540;  dsf = 2; out = 'tab7-4-over.png' },
+  # 10-inch tablets: 16:9, sides inside 1080..7680
+  @{ scene = 'menu';    cw = 1280; ch = 720;  dsf = 2; out = 'tab10-1-menu.png' },
+  @{ scene = 'classic'; cw = 1280; ch = 720;  dsf = 2; out = 'tab10-2-classic.png' },
+  @{ scene = 'climb';   cw = 1280; ch = 720;  dsf = 2; out = 'tab10-3-climb.png' },
+  @{ scene = 'over';    cw = 1280; ch = 720;  dsf = 2; out = 'tab10-4-over.png' },
+  # desktop + Play Games on PC screenshots: 16:9, sides inside 1080..7680 / 720..7680
+  @{ scene = 'menu';    cw = 1920; ch = 1080; dsf = 1; out = 'desktop-1-menu.png' },
+  @{ scene = 'classic'; cw = 1920; ch = 1080; dsf = 1; out = 'desktop-2-classic.png' },
+  @{ scene = 'climb';   cw = 1920; ch = 1080; dsf = 1; out = 'desktop-3-climb.png' },
+  @{ scene = 'over';    cw = 1920; ch = 1080; dsf = 1; out = 'desktop-4-over.png' },
+  # Play Games on PC feature graphic: 16:9, no text anywhere in the frame
+  @{ scene = 'pcfeature'; cw = 1920; ch = 1080; dsf = 1; out = 'pcgames-feature-1920x1080.png' },
+  # Play Games on PC logo: 600x400 transparent PNG of the game's own title type
+  @{ scene = 'logo';    cw = 600;  ch = 400;  dsf = 1; out = 'pcgames-logo-600x400.png'; transparent = $true }
 )
 try {
   foreach ($s in $shots) {
@@ -75,8 +96,9 @@ try {
     $pw = $s.cw * $s.dsf; $ph = $s.ch * $s.dsf
     $cmdLine = "`"$chrome`" --headless=new --disable-gpu --no-first-run --no-sandbox --mute-audio " +
                "--hide-scrollbars --force-device-scale-factor=$($s.dsf) --window-size=$cw,$ch " +
-               "--user-data-dir=`"$prof`" " +
-               "--virtual-time-budget=20000 --screenshot=`"$raw`" " +
+               "--user-data-dir=`"$prof`" "
+    if ($s.transparent) { $cmdLine += '--default-background-color=00000000 ' }
+    $cmdLine += "--virtual-time-budget=20000 --screenshot=`"$raw`" " +
                "http://127.0.0.1:$Port/tools/play-assets.html?scene=$($s.scene)^&vp=$($s.cw)x$($s.ch)"
     cmd /c "$cmdLine > `"$tmp\keepup-play-$($s.scene).log`" 2>&1"
     if (-not (Test-Path -LiteralPath $raw)) {
@@ -91,6 +113,15 @@ try {
     } finally { $bmp.Dispose() }
     $chk = New-Object System.Drawing.Bitmap($png)
     $w = $chk.Width; $h = $chk.Height
+    if ($s.transparent) {
+      $corner = $chk.GetPixel(2, 2)
+      $anyInk = $false
+      for ($x = 0; $x -lt $w; $x += 4) {
+        if ($chk.GetPixel($x, [int]($h / 2)).A -gt 0) { $anyInk = $true; break }
+      }
+      if ($corner.A -ne 0) { throw "$($s.out) corner is not transparent (alpha $($corner.A))" }
+      if (-not $anyInk) { throw "$($s.out) has no opaque title pixels on the centre row" }
+    }
     $chk.Dispose()
     if ($w -ne $pw -or $h -ne $ph) { throw "$($s.out) is ${w}x${h}, expected ${pw}x${ph}" }
     Write-Host ("ok   {0} ({1}x{2}, {3} bytes)" -f $s.out, $w, $h, (Get-Item $png).Length)

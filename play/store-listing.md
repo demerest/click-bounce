@@ -1,7 +1,8 @@
 # KEEP IT UP — Google Play store listing copy
 
 Assets in this folder are captured from the real build by
-`powershell -File tools\play-assets.ps1` (no generated imagery):
+`powershell -ExecutionPolicy Bypass -File tools\play-assets.ps1` (no generated
+imagery):
 
 | File | Spec | Scene |
 |---|---|---|
@@ -11,6 +12,11 @@ Assets in this folder are captured from the real build by
 | `phone-2-classic.png` | 1080x1920 | classic run: items, saws, spike, combo HUD |
 | `phone-3-climb.png` | 1080x1920 | climb mode: saw walls, corridor, lava |
 | `phone-4-over.png` | 1080x1920 | game-over panel with run stats |
+| `tab7-1..4-*.png` | 1920x1080 (16:9) | 7-inch tablet set: menu, classic, climb, over |
+| `tab10-1..4-*.png` | 2560x1440 (16:9) | 10-inch tablet set: same four scenes |
+| `desktop-1..4-*.png` | 1920x1080 (16:9) | desktop set; also serves as Play Games on PC screenshots |
+| `pcgames-feature-1920x1080.png` | 1920x1080 (16:9) | Play Games on PC card art: posed field, no text at all |
+| `pcgames-logo-600x400.png` | 600x400 transparent PNG | Play Games on PC logo: the menu title type on alpha |
 
 Store settings: Category **Games > Arcade**; tags `one-button`, `arcade`,
 `high-score`, `minimalist`, `offline`; Content rating: Everyone (cartoon

@@ -124,6 +124,32 @@ f.addEventListener('load', function(){
     g.ball.r = Math.min(g.W, g.H) * 0.35;
     g.ball.dispAng = 0; g.ball.blink = 0;
     K.step(DT);
+  } else if (scene === 'pcfeature'){
+    /* Play Games on PC card art: the posed run with no HUD and no floating
+       score text, because that graphic must carry no text at all. */
+    poseClassic();
+    doc.getElementById('hud').style.display = 'none';
+    doc.getElementById('sysBtns').style.display = 'none';
+    g.texts.length = 0;
+    K.step(DT);
+  } else if (scene === 'logo'){
+    /* Play Games on PC logo: the menu's own title type, isolated on a fully
+       transparent page so the capture keeps its alpha channel. */
+    document.documentElement.style.background = 'transparent';
+    document.body.style.background = 'transparent';
+    doc.getElementById('game').style.display = 'none';
+    doc.getElementById('hud').style.display = 'none';
+    doc.getElementById('sysBtns').style.display = 'none';
+    var st = doc.createElement('style');
+    st.textContent = 'html{color-scheme:light only!important;}'
+      + 'html,body{background:transparent!important;}'
+      + '.overlay{background:transparent!important; padding:0!important;}'
+      + '.panel{background:transparent!important; border:0!important; box-shadow:none!important;'
+      + ' padding:0!important; margin:0!important; width:auto!important; max-height:none!important; animation:none!important;}'
+      + '.panel>*:not(h1){display:none!important;}'
+      + 'h1{text-shadow:none!important; margin:0!important; font-size:110px!important;}';
+    doc.head.appendChild(st);
+    K.step(DT);
   }
   if (!pending) done();
   } catch (e) {
