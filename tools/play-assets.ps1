@@ -13,12 +13,16 @@
 .PARAMETER Port
   Loopback port for the temporary static server. Default 8145.
 
+.PARAMETER Only
+  Restrict the capture to these scene names (e.g. -Only menu). Default: all.
+
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File tools\play-assets.ps1
 #>
 [CmdletBinding()]
 param(
-  [int]$Port = 8145
+  [int]$Port = 8145,
+  [string[]]$Only
 )
 
 $ErrorActionPreference = 'Stop'
@@ -85,6 +89,10 @@ $shots = @(
   # Play Games on PC logo: 600x400 transparent PNG of the game's own title type
   @{ scene = 'logo';    cw = 600;  ch = 400;  dsf = 1; out = 'pcgames-logo-600x400.png'; transparent = $true }
 )
+if ($Only) {
+  $shots = @($shots | Where-Object { $Only -contains $_.scene })
+  if ($shots.Count -eq 0) { throw "no shots match -Only $($Only -join ', ')" }
+}
 try {
   foreach ($s in $shots) {
     $png = Join-Path $outDir $s.out
