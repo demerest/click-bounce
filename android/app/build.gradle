@@ -19,7 +19,7 @@ android {
         minSdk 24
         targetSdk 36
         // Play permanently consumes each versionCode per upload; bump for every AAB re-upload.
-        versionCode 5
+        versionCode 6
         versionName "1.0"
     }
 
