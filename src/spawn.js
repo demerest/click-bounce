@@ -53,7 +53,7 @@ export function spawnSaw(g){
   /* the daily seed scales speed, but the product stays capped (pillar 4) */
   if (g.daily){
     speed = Math.min(speed * g.daily.sawSpeedMul,
-                     (CFG.sawSpeedMax + CFG.sawSpeedRampCap) * CFG.dailySawSpeedMax);
+                     (CFG.sawSpeedMax + CFG.sawSpeedRampCap) * (1 + CFG.dailySawSpeedDevMax));
   }
   const edgeX = fromLeft ? -CFG.spawnOffscreen : g.W + CFG.spawnOffscreen;
   const extra = offscreenStart(g, edgeX, speed);

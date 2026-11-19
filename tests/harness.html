@@ -1164,12 +1164,28 @@ async function main(){
   const m1 = K.dailyMods(k1), m1b = K.dailyMods(k1);
   eq(JSON.stringify(m1), JSON.stringify(m1b), 'the same date always yields the same mix');
   ok(JSON.stringify(K.dailyMods('2020-01-01')) !== JSON.stringify(m1), 'another date yields another mix');
-  ok(m1.gravityMul >= CFG.dailyGravityMin && m1.gravityMul <= CFG.dailyGravityMax, 'gravity multiplier bounded (pillar 4)');
-  ok(m1.intervalMul >= CFG.dailyIntervalMin && m1.intervalMul <= CFG.dailyIntervalMax, 'interval multiplier bounded');
-  ok(m1.sawSpeedMul >= CFG.dailySawSpeedMin && m1.sawSpeedMul <= CFG.dailySawSpeedMax, 'saw speed multiplier bounded');
-  ok(m1.grace >= CFG.dailyGraceMin && m1.grace <= CFG.dailyGraceMax, 'grace bounded');
-  ok(m1.starMul >= CFG.dailyStarMin && m1.starMul <= CFG.dailyStarMax, 'star rate bounded');
+  const levers = [
+    ['gravityMul', CFG.dailyGravityDevMin, CFG.dailyGravityDevMax],
+    ['bounceMul', CFG.dailyBounceDevMin, CFG.dailyBounceDevMax],
+    ['sizeMul', CFG.dailySizeDevMin, CFG.dailySizeDevMax],
+    ['intervalMul', CFG.dailyIntervalDevMin, CFG.dailyIntervalDevMax],
+    ['sawSpeedMul', CFG.dailySawSpeedDevMin, CFG.dailySawSpeedDevMax],
+    ['starMul', CFG.dailyStarDevMin, CFG.dailyStarDevMax],
+  ];
+  let deviant = true;
+  for (let d = 1; d <= 10; d++){
+    const mm = K.dailyMods('2026-01-' + (d < 10 ? '0' + d : d));
+    for (const lv of levers){
+      const dev = Math.abs(mm[lv[0]] - 1);
+      if (dev < lv[1] - 1e-9 || dev > lv[2] + 1e-9) deviant = false;
+    }
+    const gdev = Math.abs(mm.grace - CFG.hazardDelay);
+    if (gdev < CFG.dailyGraceDevMin - 1e-9 || gdev > CFG.dailyGraceDevMax + 1e-9) deviant = false;
+  }
+  ok(deviant, 'every day pushes every lever outside the classic dead zone, bounded (pillar 4)');
   ok(K.dailyLabel(m1).length > 0, 'the mix has a human-readable label');
+  ok(!/\d/.test(K.dailyLabel(m1)), 'the label stays number-free');
+  eq(K.dailyLabel(m1).split(' · ').length, 3, 'the strip shows the three biggest twists');
 
   const savedClassicBest = K.LS.get(K.KEYS.best);
   win.localStorage.removeItem(K.KEYS.daily + k1);
@@ -1183,15 +1199,26 @@ async function main(){
   eq(g.mode, 'classic', 'the daily is a classic run with mods');
   near(g.sawTimer, g.daily.grace, 1e-9, 'the daily grace replaces the classic one');
   near(K.gravityNow(g), CFG.gravityBase * g.daily.gravityMul, 1e-9, 'the daily gravity multiplier applies');
+  near(g.ball.r, CFG.ballRadius * g.daily.sizeMul, 1e-9, 'the daily size multiplier applies');
+  eq(g.bestKey, K.KEYS.daily + k1, 'a daily run keeps its best under the day key (playtest: stale best)');
+  eq(g.best, 500, 'the daily best is today\'s, not the classic one');
+  g.ball.x = 400; g.ball.y = 300; g.totalT = g.lastBounceAt + 10;
+  K.attemptBounce(g, 400, 320, false);
+  near(g.ball.vy, -CFG.bouncePower * g.daily.bounceMul, 1e-6, 'the daily bounce multiplier applies');
   near(K.sawInterval(g), Math.max(0.9, CFG.hazardIntervalStart * g.daily.intervalMul), 1e-9,
        'the daily interval multiplier applies with a floor');
   g.elapsed = 1000;
   let dMax = 0;
   for (let i = 0; i < 200; i++){ g.hazards.length = 0; const h = K.spawnSaw(g); if (h) dMax = Math.max(dMax, Math.abs(h.vx)); }
-  ok(dMax <= (CFG.sawSpeedMax + CFG.sawSpeedRampCap) * CFG.dailySawSpeedMax + 1e-6,
+  ok(dMax <= (CFG.sawSpeedMax + CFG.sawSpeedRampCap) * (1 + CFG.dailySawSpeedDevMax) + 1e-6,
      'daily saw speed stays under its cap (pillar 4)', dMax);
   g.score = 700; K.die(g);
   eq(K.dailyBestGet(k1), 700, 'finishing a daily run records the result');
+  eq(K.LS.get(K.KEYS.best), savedClassicBest, 'a daily run never writes the classic best');
+  win.localStorage.setItem(K.KEYS.daily + '2020-01-01', '999');
+  g = K.newGame(800, 600); K.startDaily(g);
+  eq(g.best, 700, 'a fresh day reads its own best, not an older day\'s (playtest: stale best)');
+  win.localStorage.removeItem(K.KEYS.daily + '2020-01-01');
   win.localStorage.removeItem(K.KEYS.daily + k1);
   if (savedClassicBest === null) win.localStorage.removeItem(K.KEYS.best);
   else K.LS.set(K.KEYS.best, savedClassicBest);

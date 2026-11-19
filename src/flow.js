@@ -8,7 +8,7 @@ import { approach } from './math.js';
 import { LS } from './storage.js';
 import { announce } from './dom.js';
 import { Snd } from './audio.js';
-import { dailyBestSet, dailyKey, dailyMods } from './daily.js';
+import { dailyBestGet, dailyKey, dailyMods } from './daily.js';
 import { skinLoad } from './skins.js';
 import { climbInit } from './climb.js';
 import { resetBall, resetRun } from './state.js';
@@ -31,8 +31,10 @@ export function startRun(g, mode, useDaily){
   Snd.ensure();                       // AUD-02: inside a user gesture
   g.mode = mode === 'climb' ? 'climb' : 'classic';
   g.daily = (useDaily && g.mode === 'classic') ? dailyMods(dailyKey()) : null;
-  g.bestKey = g.mode === 'climb' ? KEYS.bestClimb : KEYS.best;
-  g.best = Math.max(0, Math.floor(LS.num(g.bestKey, 0)));
+  /* a daily run keeps its best under the day key: fresh day, fresh zero */
+  g.bestKey = g.mode === 'climb' ? KEYS.bestClimb
+            : g.daily ? KEYS.daily + g.daily.key : KEYS.best;
+  g.best = g.daily ? dailyBestGet(g.daily.key) : Math.max(0, Math.floor(LS.num(g.bestKey, 0)));
   resetRun(g);
   g.skin = skinLoad();
   if (g.mode === 'climb') climbInit(g);
@@ -64,7 +66,6 @@ export function die(g){
     g.best = g.score;
     LS.set(g.bestKey, String(g.best));     // silently ignored if storage is blocked
   }
-  if (g.daily) dailyBestSet(g.daily.key, g.score);
   announce('Run over. Score ' + g.score + (g.newBest ? ', new best!' : '') + ' Best ' + g.best + '.');
 }
 

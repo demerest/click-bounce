@@ -311,16 +311,16 @@ export const CFG = {
   skinUnlock: [0, 600, 1800, 4000],
 
   /* ---------------- daily challenge (Phase 4) ---------------- */
-  dailyGravityMin: 0.85,        // seeded multipliers, all bounded (pillar 4)
-  dailyGravityMax: 1.2,
-  dailyIntervalMin: 0.8,
-  dailyIntervalMax: 1.25,
-  dailySawSpeedMin: 0.85,
-  dailySawSpeedMax: 1.3,
-  dailyGraceMin: 6,
-  dailyGraceMax: 12,
-  dailyStarMin: 0.7,
-  dailyStarMax: 1.4,
+  /* Each lever is pushed AWAY from classic by a seeded deviation inside its
+   * band (random side), so no day lands on "normal" and every day reads
+   * differently. All bands bounded (pillar 4). */
+  dailyGravityDevMin: 0.12, dailyGravityDevMax: 0.3,
+  dailyBounceDevMin: 0.08,  dailyBounceDevMax: 0.18,
+  dailySizeDevMin: 0.1,     dailySizeDevMax: 0.22,
+  dailyIntervalDevMin: 0.2, dailyIntervalDevMax: 0.45,
+  dailySawSpeedDevMin: 0.15, dailySawSpeedDevMax: 0.4,
+  dailyGraceDevMin: 3,      dailyGraceDevMax: 6,   // seconds away from hazardDelay
+  dailyStarDevMin: 0.3,     dailyStarDevMax: 0.8,
 
   /* ---------------- climb mode (Phase 5) ---------------- */
   climbBandSpacing: 300,        // one procedural band per this many px of height

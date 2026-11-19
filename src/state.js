@@ -85,6 +85,7 @@ export function createGame(){
 
 export function resetBall(g){
   const b = g.ball;
+  b.r = CFG.ballRadius * (g.daily ? g.daily.sizeMul : 1);
   b.x = g.W / 2; b.y = g.H * 0.4;
   b.vx = rand(-30, 30); b.vy = -250;
   b.spin = 0; b.ang = 0; b.dispAng = -Math.PI / 2;

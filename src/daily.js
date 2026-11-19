@@ -13,27 +13,56 @@ export function dailyKey(d){
   return dt.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
 }
 
+/* A lever pushed away from classic: random side, magnitude inside the band,
+ * so no day lands on "normal" and every day reads differently. */
+function spread(rnd, devMin, devMax){
+  const dev = seededRange(rnd, devMin, devMax);
+  return rnd() < 0.5 ? 1 - dev : 1 + dev;
+}
+
 export function dailyMods(key){
   const rnd = mulberry32(hashSeed('keepup:' + key));
+  const graceDev = seededRange(rnd, CFG.dailyGraceDevMin, CFG.dailyGraceDevMax);
   return {
     key: key,
-    gravityMul: seededRange(rnd, CFG.dailyGravityMin, CFG.dailyGravityMax),
-    intervalMul: seededRange(rnd, CFG.dailyIntervalMin, CFG.dailyIntervalMax),
-    sawSpeedMul: seededRange(rnd, CFG.dailySawSpeedMin, CFG.dailySawSpeedMax),
-    grace: seededRange(rnd, CFG.dailyGraceMin, CFG.dailyGraceMax),
-    starMul: seededRange(rnd, CFG.dailyStarMin, CFG.dailyStarMax),
+    gravityMul: spread(rnd, CFG.dailyGravityDevMin, CFG.dailyGravityDevMax),
+    bounceMul: spread(rnd, CFG.dailyBounceDevMin, CFG.dailyBounceDevMax),
+    sizeMul: spread(rnd, CFG.dailySizeDevMin, CFG.dailySizeDevMax),
+    intervalMul: spread(rnd, CFG.dailyIntervalDevMin, CFG.dailyIntervalDevMax),
+    sawSpeedMul: spread(rnd, CFG.dailySawSpeedDevMin, CFG.dailySawSpeedDevMax),
+    grace: Math.round(CFG.hazardDelay + (rnd() < 0.5 ? -graceDev : graceDev)),
+    starMul: spread(rnd, CFG.dailyStarDevMin, CFG.dailyStarDevMax),
   };
 }
 
-/* Two or three human-readable chips for the menu strip. */
+/* The three most pronounced twists in plain words; extreme days upgrade to
+ * stronger words. Ranked by deviation relative to each band's midpoint so
+ * levers with different scales compete fairly for the three slots. */
 export function dailyLabel(m){
-  const bits = [];
-  bits.push(m.gravityMul > 1.03 ? 'heavy gravity' : m.gravityMul < 0.97 ? 'light gravity' : 'normal gravity');
-  bits.push(m.intervalMul < 0.95 ? 'relentless saws' : m.intervalMul > 1.08 ? 'sparse saws' : 'steady saws');
-  bits.push(m.sawSpeedMul > 1.08 ? 'fast saws' : m.sawSpeedMul < 0.92 ? 'slow saws' : 'usual saw speed');
-  if (m.starMul > 1.1) bits.push('star rain');
-  else if (m.starMul < 0.9) bits.push('star drought');
-  return bits.slice(0, 3).join(' · ');
+  const chips = [];
+  const add = (dev, lo, hi, mildLow, strongLow, mildHigh, strongHigh) => {
+    const a = Math.abs(dev);
+    const strong = a >= (lo + hi) / 2;
+    chips.push({ rank: a / ((lo + hi) / 2),
+                 text: dev < 0 ? (strong ? strongLow : mildLow) : (strong ? strongHigh : mildHigh) });
+  };
+  add(m.gravityMul - 1, CFG.dailyGravityDevMin, CFG.dailyGravityDevMax,
+      'light gravity', 'feather gravity', 'heavy gravity', 'crushing gravity');
+  add(m.bounceMul - 1, CFG.dailyBounceDevMin, CFG.dailyBounceDevMax,
+      'soft boing', 'weak boing', 'big boing', 'rocket boing');
+  add(m.sizeMul - 1, CFG.dailySizeDevMin, CFG.dailySizeDevMax,
+      'small ball', 'tiny ball', 'big ball', 'huge ball');
+  add(m.intervalMul - 1, CFG.dailyIntervalDevMin, CFG.dailyIntervalDevMax,
+      'relentless saws', 'saw storm', 'sparse saws', 'quiet sky');
+  add(m.sawSpeedMul - 1, CFG.dailySawSpeedDevMin, CFG.dailySawSpeedDevMax,
+      'slow saws', 'sleepy saws', 'fast saws', 'blazing saws');
+  add((m.grace - CFG.hazardDelay) / CFG.hazardDelay,
+      CFG.dailyGraceDevMin / CFG.hazardDelay, CFG.dailyGraceDevMax / CFG.hazardDelay,
+      'short warm-up', 'no warm-up', 'long warm-up', 'lazy start');
+  add(m.starMul - 1, CFG.dailyStarDevMin, CFG.dailyStarDevMax,
+      'star drought', 'star famine', 'star rain', 'star flood');
+  chips.sort((a, b) => b.rank - a.rank);
+  return chips.slice(0, 3).map(c => c.text).join(' · ');
 }
 
 export function dailyBestGet(key){

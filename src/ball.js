@@ -42,7 +42,7 @@ export function attemptBounce(g, cx, cy, auto, touch){
   /* CORE-05: charge — quick taps are weak, letting it fall is full power */
   const charge = clamp((g.totalT - g.lastBounceAt) / CFG.bounceChargeTime, 0, 1);
   const factor = CFG.bounceMinFactor + (1 - CFG.bounceMinFactor) * charge;
-  const power = CFG.bouncePower * factor;
+  const power = CFG.bouncePower * factor * (g.daily ? g.daily.bounceMul : 1);
 
   b.vx = nx * power * CFG.bounceLateralMul;
   b.vy = -power * Math.max(CFG.bounceMinUpward, -ny);
