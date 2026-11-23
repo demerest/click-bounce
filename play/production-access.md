@@ -2,52 +2,16 @@
 
 Drafted 2026-11-23 from the closed-test git history (first Play upload 2026-11-05,
 six consumed versionCodes through 2026-11-19). Paste the two answers below into
-the console; the evidence appendix is for reference only.
+the console; the evidence appendix is for reference only. Condensed to the
+300-character console cap (298 / 295 chars), iOS excluded as not relevant.
 
 ## What changes did you make to your game based on what you learned during your closed test?
 
-During the closed test I shipped six updates between 5 and 19 November, each driven
-by tester feedback and my own play sessions:
-
-- Fairer controls: testers reported that some taps felt like unfair misses, so I
-  widened the effective tap area (a little larger on touch screens) while keeping
-  misses meaningful so the game stays challenging, and hid keyboard hints on
-  touch-only devices.
-- Phone readability: I moved the combo meter out of the top centre — where modern
-  phones have the front-camera notch — to below the score, matched the Android
-  menu font weight to the web version, and removed button focus rings.
-- More engaging scoring: the old combo cap was reached in almost every run, so I
-  raised it to x25 with a chain window that tightens step by step, rewarding
-  sustained skill.
-- Bugs testers found: in Climb mode a shield now destroys the saw it blocked
-  (previously the saw stayed intact and could kill you next frame), and the Daily
-  best score now resets to zero each day instead of carrying over.
-- Clearer presentation: I rewrote the instructions in plain, casual language
-  without technical numbers, and made the Daily mode visibly remix the rules every
-  day, showing the day's three biggest twists in the menu.
-- Install and offline: I added PWA support with iOS-specific install guidance so
-  iPhone/iPad users can install it fullscreen and play offline.
+Six closed-test updates from tester feedback: wider tap area so misses feel fair; combo meter moved below the score (camera notch); combo cap raised to x25 with tighter timing; Climb shield now destroys the saw it blocks; Daily best resets each day; plain-language instructions; bolder daily remix.
 
 ## How did you decide that your game is ready for production?
 
-I ran the closed test as a feedback-fix-reverify loop. Every reported issue was
-fixed and turned into a permanent automated regression check: the headless test
-suite grew from about 440 to 539 assertions, runs on every build, and includes a
-rendered-frame check that the shipped game actually animates. The final rounds
-produced only polish requests (wording, daily variety) rather than new functional
-or stability bugs, and I confirmed the earlier fixes in live play.
-
-The game is also low-risk by construction: a single self-contained HTML file in a
-minimal WebView wrapper with no INTERNET permission, no ads, no tracking, no
-accounts, no purchases and no third-party code. It collects no data and works
-fully offline. I verified real captures of the shipped build on phone, 7-inch and
-10-inch tablet and desktop form factors, and tested the Android wrapper on device;
-it supports Android 7.0 and up. Every difficulty ramp and pickup effect has an
-explicit cap, so runs stay fair and predictable.
-
-With all tester feedback addressed, no open stability or fairness issues, and the
-full regression suite green on the final build, I judged the game ready for
-production.
+Every tester issue was fixed and became a regression test: the suite grew from 440 to 539 checks, run on each build. Last rounds: polish only, no bugs. Single-file game: no network, ads, tracking or accounts; offline; no data collected. Verified on phone, tablets, desktop and on-device Android.
 
 ## Evidence appendix (reference only)
 
