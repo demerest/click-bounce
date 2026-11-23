@@ -100,7 +100,7 @@ export function update(g, dtReal){
         if (g.comboTimer <= 0) g.combo = 0;
       }
     } else {
-      if (ballHitFloor(g)){ die(g); return; }      // CORE-04
+      if (ballHitFloor(g)){ die(g, 'floor'); return; }      // CORE-04
       if (g.combo > 0){
         g.comboTimer -= physDt;
         if (g.comboTimer <= 0) g.combo = 0;        // SCORE-02 expiry

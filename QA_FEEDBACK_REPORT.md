@@ -3,8 +3,8 @@
 Source: paid QA review `a8082033-…_feedback_1795387698.pdf` (review date 22 Nov 2026).
 The review is evidence-grounded: it was written from supplied gameplay captures and
 the published feature description, **not** from independent device execution — it
-says so itself. Triaged 23 Nov 2026 against the current build (harness: 539
-assertions, 44 sections, `tools/verify.ps1`).
+says so itself. Triaged 23 Nov 2026 against the current build (harness: 552
+assertions, 44 sections, `tools/verify.ps1`); KU-02 and KU-05 closed same day.
 
 Status legend: **Addressed** = implemented and covered by regression assertions;
 **Partial** = partly covered, a concrete gap remains; **Open** = not implemented.
@@ -16,10 +16,10 @@ Effort to close the gap: **S** < 1 h (CSS/copy/small logic + assertion),
 | Item | Review class | Relevance | Status | Effort to close |
 |---|---|---|---|---|
 | KU-01 first-time control comprehension | Usability, Medium | High (steering is unconventional) | Open (attract demo + text only) | M |
-| KU-02 in-run feedback hierarchy | Usability, Medium | Medium | Partial (phone meter moved; bar still thin) | S |
+| KU-02 in-run feedback hierarchy | Usability, Medium | Medium | Addressed (11-23: phone cue scale/contrast) | – |
 | KU-03 scoring & combo explanation | Validation, High | High, but already verified | Addressed | – |
 | KU-04 daily repeatability | Validation, High | High | Addressed (incl. 11-19 per-day best fix) | – |
-| KU-05 game-over & replay flow | Positive, Low–Med | Medium | Partial (no cause-of-death label) | S |
+| KU-05 game-over & replay flow | Positive, Low–Med | Medium | Addressed (11-23: cause-of-death line) | – |
 | KU-06 sound, pause, accessibility | Validation, Medium | Medium | Addressed | – |
 | KU-07 hazard telegraph fairness | Validation, High | High | Addressed | – |
 | KU-08 pickups & temporary effects | Validation, Medium | Medium | Addressed | – |
@@ -39,13 +39,15 @@ Gap: optional first-run overlay (arrow from tap point + charge hint), shown once
 persisted skip, casual number-free copy. M: new overlay + storage flag + harness
 assertions; must not interrupt returning players.
 
-### KU-02 — In-run feedback hierarchy (Partial, S)
+### KU-02 — In-run feedback hierarchy (Addressed 11-23)
 They want a louder combo-expiry cue and Daily identifier on compact screens.
 Already done since their captures: phone combo meter moved under the score
 (11-10, camera-notch fix), combo bar is a permanent HUD element (§25), Daily tag
 is a coloured bordered chip. Remaining gap: the expiry bar is 5 px thin and the
 combo digits could scale up on small screens; contrast vs bright/dark skies is
-untested. S: media-query scale/contrast bump + a HUD geometry assertion.
+untested. Done 11-23: under 720px the combo digits scale 30→34px, the expiry bar
+92×5→110×7 with a brighter track, and the mode tag 10→11px on a denser background;
+desktop unchanged. Harness asserts both phone and desktop computed styles.
 
 ### KU-03 — Scoring & combo explanation (Addressed)
 They ask to verify base points, window entry/expiry, missed taps, caps and
@@ -65,12 +67,14 @@ Clock/timezone changes intentionally change the local date key — same rule for
 everyone, documented behaviour, not a defect. Optional S: explicit
 `dailyKey(fakeDate)` midnight-rollover assertion.
 
-### KU-05 — Game-over & replay flow (Partial, S)
+### KU-05 — Game-over & replay flow (Addressed 11-23)
 Bounce Again is already the dominant action and Copy Score secondary (§16/§24,
 §41 retry keeps mode). Gap: no cause-of-death label — the eyebrow is mode-based
 ("GRAVITY WINS" / "THE LAVA WINS"), so a saw death and a floor death read the
-same. S: thread a cause through `die()` (floor / saw / spike / drone / lava) into
-`fillGameOver`, casual one-liner, one assertion per cause.
+same. Done 11-23: `die(g, cause)` records floor/saw/spike/drone/lava; the over
+panel shows a casual cause line ("the floor got you", "a saw got you", …) under
+SPLAT, and the eyebrow now names the mode (CLASSIC / CLIMB / DAILY date) instead
+of guessing the cause. One harness assertion per cause plus reset clearing.
 
 ### KU-06 — Sound, pause, accessibility (Addressed)
 Pause freezes physics and all hazard timers (§17, `update()` early-returns before
@@ -128,10 +132,10 @@ review blocks production that the suite doesn't already guard.
 
 ## Recommended next steps (if any)
 
-1. KU-05 cause-of-death label (S) — cheap clarity win on the most-seen screen.
-2. KU-02 combo cue scale/contrast on phones (S).
-3. KU-10 safe-area insets (S–M, needs one real-device check).
-4. KU-01 optional first-bounce cue (M) — the only genuinely new subsystem; do it
+1. KU-10 safe-area insets (S–M, needs one real-device check).
+2. KU-01 optional first-bounce cue (M) — the only genuinely new subsystem; do it
    if new-player retention matters more than shipping speed.
+
+KU-05 and KU-02 shipped 11-23 (cause line + phone HUD scale/contrast).
 
 Everything else is already implemented and regression-guarded; no action needed.

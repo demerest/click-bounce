@@ -47,7 +47,7 @@ export function createGame(){
     hitStop: 0,       // Phase 2 hit-stop
 
     /* scoring (SCORE-*) */
-    score: 0, best: 0, newBest: false,
+    score: 0, best: 0, newBest: false, deathCause: null,
     combo: 0, comboTimer: 0, comboWindowNow: 0, maxCombo: 0, bounces: 0,
     starsRun: 0, shieldSaves: 0,      // Phase 4 achievement counters
 
@@ -100,6 +100,7 @@ export function resetRun(g){
   g.maxCombo = 0; g.bounces = 0;
   g.starsRun = 0; g.shieldSaves = 0;
   g.newBest = false;
+  g.deathCause = null;
   g.elapsed = 0;
   g.lastBounceAt = g.totalT - 9;      // first bounce of a run is always full charge
   g.timeScale = 1; g.deathT = 0; g.panelShown = false; g.hitStop = 0;

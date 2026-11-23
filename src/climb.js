@@ -157,7 +157,7 @@ export function climbUpdate(g, dt){
       const saw = band.saws[s];
       saw.rot += saw.rotV * dt;
       if (b.dead) continue;
-      const strike = hazardStrike(g, saw.x, saw.y, saw.r);
+      const strike = hazardStrike(g, saw.x, saw.y, saw.r, 'saw');
       if (strike === 'dead') return true;
       /* as in classic: a shield save destroys the hazard - otherwise the still
        * touching saw would kill on the very next frame (playtest bug) */
@@ -186,7 +186,7 @@ export function climbUpdate(g, dt){
   }
 
   if (!b.dead && b.y + b.r >= c.lavaY){
-    die(g);
+    die(g, 'lava');
     return true;
   }
 

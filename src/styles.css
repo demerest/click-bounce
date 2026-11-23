@@ -192,7 +192,10 @@ body.noDisplay h1, body.noDisplay .modeBtn, body.noDisplay button.big{font-weigh
   /* phones put the front camera where the centred combo meter sat: park it
      under the score column instead */
   #comboBox{top:96px; left:16px; transform:none; text-align:left;}
-  #comboBarWrap{margin:5px 0 0;}
+  /* KU-02: a louder expiry cue and mode tag on compact screens */
+  #combo{font-size:34px;}
+  #comboBarWrap{width:110px; height:7px; margin:5px 0 0; background:rgba(255,255,255,.28);}
+  .modeTag{font-size:11px; background:rgba(10,13,20,.85);}
 }
 @media (max-height: 720px){
   .panel{padding:18px 22px 18px;}

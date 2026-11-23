@@ -31,6 +31,7 @@ export const DOM = {
   scoreUnit: byId('scoreUnit'),
   modeTag: byId('modeTag'),
   overEyebrow: byId('overEyebrow'),
+  overCause: byId('overCause'),
   toasts: byId('toasts'),
   toast: byId('toast'),
   toastName: byId('toastName'),

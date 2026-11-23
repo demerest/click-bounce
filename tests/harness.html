@@ -856,6 +856,23 @@ async function main(){
   eq(doc.getElementById('finalBest').textContent, '1234', 'shows the best');
   eq(doc.getElementById('newBest').style.display, 'inline-block', 'shows the NEW BEST flag');
   eq(doc.getElementById('retryBtn'), doc.activeElement, 'focus lands on Retry (A11Y-02)');
+  eq(doc.getElementById('overCause').textContent, 'the floor got you', 'the over panel names the cause of death (KU-05)');
+  eq(doc.getElementById('overEyebrow').textContent, 'CLASSIC', 'the over eyebrow names the mode');
+  const causes = [['saw', 'a saw got you'], ['spike', 'a spike dropped on you'], ['drone', 'the drone caught you']];
+  for (const c of causes){
+    K.startGame(G); G.panelShown = false;
+    K.die(G, c[0]);
+    G.overAt = win.performance.now() - 100000;
+    K.updateFlow(G, 1); K.updateFlow(G, 0);
+    eq(doc.getElementById('overCause').textContent, c[1], 'cause line: ' + c[0] + ' (KU-05)');
+  }
+  K.startClimb(G); G.panelShown = false;
+  eq(G.deathCause, null, 'a fresh run clears the previous cause');
+  K.die(G, 'lava');
+  G.overAt = win.performance.now() - 100000;
+  K.updateFlow(G, 1); K.updateFlow(G, 0);
+  eq(doc.getElementById('overCause').textContent, 'the lava caught up', 'cause line: lava (KU-05)');
+  eq(doc.getElementById('overEyebrow').textContent, 'CLIMB', 'the climb over eyebrow names the mode');
 
   /* ===================================================== 25. HUD (UI-03) */
   sec('25. HUD (UI-03, SCORE-04)');
@@ -1502,9 +1519,14 @@ async function main(){
   ok(cbR.left < 40 && cbR.top >= sbR.bottom - 1,
      'on phone widths the combo meter sits top-left below the score column',
      cbR.left + ',' + cbR.top + ' vs score bottom ' + sbR.bottom);
+  eq(win.getComputedStyle(doc.getElementById('combo')).fontSize, '34px', 'phone combo digits scale up (KU-02)');
+  eq(win.getComputedStyle(doc.getElementById('comboBarWrap')).height, '7px', 'phone combo bar thickens (KU-02)');
+  eq(win.getComputedStyle(doc.getElementById('modeTag')).fontSize, '11px', 'phone mode tag scales up (KU-02)');
   f.style.width = fw; f.style.height = fh;
   await sleep(120);
   win.dispatchEvent(new win.Event('resize'));
+  eq(win.getComputedStyle(doc.getElementById('combo')).fontSize, '30px', 'desktop combo digits stay as before (KU-02)');
+  eq(win.getComputedStyle(doc.getElementById('comboBarWrap')).height, '5px', 'desktop combo bar stays as before (KU-02)');
   ok(doc.getElementById('toast').classList.contains('toast'), 'the badge toast is a CSS-animated element');
   ok(doc.documentElement.style.getPropertyValue('--toast-in').length > 0, 'CFG drives the toast timing');
   if (doc.activeElement && doc.activeElement.blur) doc.activeElement.blur();

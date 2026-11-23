@@ -51,9 +51,10 @@ export function startDaily(g){ startRun(g, 'classic', true); }
 export function startClimb(g){ startRun(g, 'climb', false); }
 
 /* CORE-04 / HAZ-03 both end here. The panel is delayed so the death lands first. */
-export function die(g){
+export function die(g, cause){
   if (g.ball.dead) return;
   g.ball.dead = true;
+  g.deathCause = cause || 'floor';
   g.state = 'dying';
   g.deathT = 0;
   g.panelShown = false;

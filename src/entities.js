@@ -90,12 +90,12 @@ function consumeShieldAt(g, x, y){
 
 /* Shared by moving hazards and climb-mode band saws: shield absorbs, else death.
  * Returns 'shield' | 'dead' | null (no contact). */
-export function hazardStrike(g, x, y, r){
+export function hazardStrike(g, x, y, r, cause){
   const b = g.ball;
   const gap = Math.hypot(x - b.x, y - b.y) - (r + b.r * CFG.hazardKillPad);
   if (gap >= 0) return null;
   if (g.shield){ consumeShieldAt(g, x, y); return 'shield'; }
-  die(g);
+  die(g, cause);
   return 'dead';
 }
 
@@ -110,7 +110,7 @@ function resolveContact(g, h){
   const gap = Math.hypot(h.x - b.x, h.cy - b.y) - (h.r + b.r * CFG.hazardKillPad);
 
   if (gap < 0){
-    if (hazardStrike(g, h.x, h.cy, h.r) === 'shield') h.gone = true;
+    if (hazardStrike(g, h.x, h.cy, h.r, h.kind) === 'shield') h.gone = true;
     return;
   }
   /* Phase 2 near-miss: gap was inside the margin last frame and is now widening */

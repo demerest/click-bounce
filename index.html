@@ -218,7 +218,10 @@ body.noDisplay h1, body.noDisplay .modeBtn, body.noDisplay button.big{font-weigh
   /* phones put the front camera where the centred combo meter sat: park it
      under the score column instead */
   #comboBox{top:96px; left:16px; transform:none; text-align:left;}
-  #comboBarWrap{margin:5px 0 0;}
+  /* KU-02: a louder expiry cue and mode tag on compact screens */
+  #combo{font-size:34px;}
+  #comboBarWrap{width:110px; height:7px; margin:5px 0 0; background:rgba(255,255,255,.28);}
+  .modeTag{font-size:11px; background:rgba(10,13,20,.85);}
 }
 @media (max-height: 720px){
   .panel{padding:18px 22px 18px;}
@@ -348,6 +351,7 @@ body.noDisplay h1, body.noDisplay .modeBtn, body.noDisplay button.big{font-weigh
   <div class="panel">
     <p class="eyebrow" id="overEyebrow">GRAVITY WINS</p>
     <h1 id="overTitle">SPLAT<em>.</em></h1>
+    <p class="tag" id="overCause">the floor got you</p>
     <div id="finalScore"><span id="finalScoreVal">0</span><span id="newBest">NEW BEST!</span></div>
     <div class="stats">
       <div class="stat"><b id="finalBounces">0</b><span>BOUNCES</span></div>
@@ -886,6 +890,7 @@ const DOM = {
   scoreUnit: byId('scoreUnit'),
   modeTag: byId('modeTag'),
   overEyebrow: byId('overEyebrow'),
+  overCause: byId('overCause'),
   toasts: byId('toasts'),
   toast: byId('toast'),
   toastName: byId('toastName'),
@@ -1172,7 +1177,7 @@ function createGame(){
     hitStop: 0,       // Phase 2 hit-stop
 
     /* scoring (SCORE-*) */
-    score: 0, best: 0, newBest: false,
+    score: 0, best: 0, newBest: false, deathCause: null,
     combo: 0, comboTimer: 0, comboWindowNow: 0, maxCombo: 0, bounces: 0,
     starsRun: 0, shieldSaves: 0,      // Phase 4 achievement counters
 
@@ -1225,6 +1230,7 @@ function resetRun(g){
   g.maxCombo = 0; g.bounces = 0;
   g.starsRun = 0; g.shieldSaves = 0;
   g.newBest = false;
+  g.deathCause = null;
   g.elapsed = 0;
   g.lastBounceAt = g.totalT - 9;      // first bounce of a run is always full charge
   g.timeScale = 1; g.deathT = 0; g.panelShown = false; g.hitStop = 0;
@@ -1822,9 +1828,19 @@ function showPause(g){
   focusEl(DOM.resumeBtn);
 }
 
+/* KU-05: the panel says what ended the run, in plain words */
+const DEATH_LINES = {
+  floor: 'the floor got you',
+  saw: 'a saw got you',
+  spike: 'a spike dropped on you',
+  drone: 'the drone caught you',
+  lava: 'the lava caught up',
+};
+
 function fillGameOver(g){
-  DOM.overEyebrow.textContent = g.mode === 'climb' ? 'THE LAVA WINS'
-    : g.daily ? 'DAILY ' + g.daily.key : 'GRAVITY WINS';
+  DOM.overEyebrow.textContent = g.mode === 'climb' ? 'CLIMB'
+    : g.daily ? 'DAILY ' + g.daily.key : 'CLASSIC';
+  DOM.overCause.textContent = DEATH_LINES[g.deathCause] || DEATH_LINES.floor;
   DOM.finalScoreVal.textContent = g.score;
   DOM.newBest.style.display = g.newBest ? 'inline-block' : 'none';
   DOM.finalBounces.textContent = g.bounces;
@@ -2066,9 +2082,10 @@ function startDaily(g){ startRun(g, 'classic', true); }
 function startClimb(g){ startRun(g, 'climb', false); }
 
 /* CORE-04 / HAZ-03 both end here. The panel is delayed so the death lands first. */
-function die(g){
+function die(g, cause){
   if (g.ball.dead) return;
   g.ball.dead = true;
+  g.deathCause = cause || 'floor';
   g.state = 'dying';
   g.deathT = 0;
   g.panelShown = false;
@@ -2327,7 +2344,7 @@ function climbUpdate(g, dt){
       const saw = band.saws[s];
       saw.rot += saw.rotV * dt;
       if (b.dead) continue;
-      const strike = hazardStrike(g, saw.x, saw.y, saw.r);
+      const strike = hazardStrike(g, saw.x, saw.y, saw.r, 'saw');
       if (strike === 'dead') return true;
       /* as in classic: a shield save destroys the hazard - otherwise the still
        * touching saw would kill on the very next frame (playtest bug) */
@@ -2356,7 +2373,7 @@ function climbUpdate(g, dt){
   }
 
   if (!b.dead && b.y + b.r >= c.lavaY){
-    die(g);
+    die(g, 'lava');
     return true;
   }
 
@@ -2704,12 +2721,12 @@ function consumeShieldAt(g, x, y){
 
 /* Shared by moving hazards and climb-mode band saws: shield absorbs, else death.
  * Returns 'shield' | 'dead' | null (no contact). */
-function hazardStrike(g, x, y, r){
+function hazardStrike(g, x, y, r, cause){
   const b = g.ball;
   const gap = Math.hypot(x - b.x, y - b.y) - (r + b.r * CFG.hazardKillPad);
   if (gap >= 0) return null;
   if (g.shield){ consumeShieldAt(g, x, y); return 'shield'; }
-  die(g);
+  die(g, cause);
   return 'dead';
 }
 
@@ -2724,7 +2741,7 @@ function resolveContact(g, h){
   const gap = Math.hypot(h.x - b.x, h.cy - b.y) - (h.r + b.r * CFG.hazardKillPad);
 
   if (gap < 0){
-    if (hazardStrike(g, h.x, h.cy, h.r) === 'shield') h.gone = true;
+    if (hazardStrike(g, h.x, h.cy, h.r, h.kind) === 'shield') h.gone = true;
     return;
   }
   /* Phase 2 near-miss: gap was inside the margin last frame and is now widening */
@@ -3771,7 +3788,7 @@ function update(g, dtReal){
         if (g.comboTimer <= 0) g.combo = 0;
       }
     } else {
-      if (ballHitFloor(g)){ die(g); return; }      // CORE-04
+      if (ballHitFloor(g)){ die(g, 'floor'); return; }      // CORE-04
       if (g.combo > 0){
         g.comboTimer -= physDt;
         if (g.comboTimer <= 0) g.combo = 0;        // SCORE-02 expiry

@@ -59,9 +59,19 @@ export function showPause(g){
   focusEl(DOM.resumeBtn);
 }
 
+/* KU-05: the panel says what ended the run, in plain words */
+const DEATH_LINES = {
+  floor: 'the floor got you',
+  saw: 'a saw got you',
+  spike: 'a spike dropped on you',
+  drone: 'the drone caught you',
+  lava: 'the lava caught up',
+};
+
 export function fillGameOver(g){
-  DOM.overEyebrow.textContent = g.mode === 'climb' ? 'THE LAVA WINS'
-    : g.daily ? 'DAILY ' + g.daily.key : 'GRAVITY WINS';
+  DOM.overEyebrow.textContent = g.mode === 'climb' ? 'CLIMB'
+    : g.daily ? 'DAILY ' + g.daily.key : 'CLASSIC';
+  DOM.overCause.textContent = DEATH_LINES[g.deathCause] || DEATH_LINES.floor;
   DOM.finalScoreVal.textContent = g.score;
   DOM.newBest.style.display = g.newBest ? 'inline-block' : 'none';
   DOM.finalBounces.textContent = g.bounces;
